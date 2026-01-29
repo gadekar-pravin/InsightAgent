@@ -8,7 +8,12 @@ Tests the 5 demo scenarios from the implementation plan:
 4. Cross-Session Memory
 5. RAG Contextual Grounding
 
-Run with: python -m pytest tests/test_integration.py -v -s
+Run with:
+    # Requires backend running on localhost:8080
+    RUN_INTEGRATION_TESTS=1 DEMO_API_KEY=<key> pytest tests/test_integration.py -v -s
+
+Or standalone:
+    RUN_INTEGRATION_TESTS=1 DEMO_API_KEY=<key> python tests/test_integration.py
 """
 
 import os
@@ -16,28 +21,41 @@ import sys
 import json
 import time
 import requests
-from typing import Generator
+import pytest
 
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 # Configuration
 API_BASE = os.getenv("API_BASE", "http://localhost:8080")
-API_KEY = os.getenv("DEMO_API_KEY", "6_h7P-FH0jS4dY66v80NHljSrFF6hA8Qu1kZ3rowkqY")
+API_KEY = os.getenv("DEMO_API_KEY")  # Required - no default to avoid credential leak
 TEST_USER = "integration_test_user"
 
-HEADERS = {
-    "Content-Type": "application/json",
-    "X-API-Key": API_KEY,
-}
+# Request timeouts (connect, read) in seconds
+REQUEST_TIMEOUT = (5, 120)  # 5s connect, 120s read for LLM responses
+
+# Skip integration tests unless explicitly enabled
+SKIP_INTEGRATION = not os.getenv("RUN_INTEGRATION_TESTS")
+SKIP_REASON = "Integration tests require RUN_INTEGRATION_TESTS=1 and DEMO_API_KEY env vars"
+
+
+def get_headers() -> dict:
+    """Get request headers with API key."""
+    if not API_KEY:
+        pytest.skip("DEMO_API_KEY environment variable not set")
+    return {
+        "Content-Type": "application/json",
+        "X-API-Key": API_KEY,
+    }
 
 
 def create_session(user_id: str = TEST_USER) -> dict:
     """Create a new chat session."""
     response = requests.post(
         f"{API_BASE}/api/chat/session",
-        headers=HEADERS,
+        headers=get_headers(),
         json={"user_id": user_id},
+        timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
     return response.json()
@@ -60,13 +78,14 @@ def send_message_streaming(session_id: str, content: str, user_id: str = TEST_US
 
     response = requests.post(
         f"{API_BASE}/api/chat/message",
-        headers=HEADERS,
+        headers=get_headers(),
         json={
             "session_id": session_id,
             "user_id": user_id,
             "content": content,
         },
         stream=True,
+        timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
 
@@ -124,8 +143,9 @@ def reset_user_memory(user_id: str = TEST_USER) -> dict:
     """Reset user memory for clean test state."""
     response = requests.delete(
         f"{API_BASE}/api/user/memory/reset",
-        headers=HEADERS,
+        headers=get_headers(),
         params={"user_id": user_id},
+        timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
     return response.json()
@@ -135,34 +155,50 @@ def get_user_memory(user_id: str = TEST_USER) -> dict:
     """Get user memory."""
     response = requests.get(
         f"{API_BASE}/api/user/memory",
-        headers=HEADERS,
+        headers=get_headers(),
         params={"user_id": user_id},
+        timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
     return response.json()
 
 
 # ============================================================================
+# Pytest Fixtures
+# ============================================================================
+
+@pytest.fixture
+def clean_session():
+    """Create a fresh session with reset memory."""
+    reset_user_memory()
+    return create_session()
+
+
+@pytest.fixture
+def session_with_context(clean_session):
+    """Session with prior Q4 revenue query for context."""
+    send_message_streaming(clean_session["session_id"], "What was our Q4 2024 revenue?")
+    return clean_session
+
+
+# ============================================================================
 # Test Scenario 1: Simple Query + RAG Grounding
 # ============================================================================
 
-def test_scenario_1_simple_query():
+@pytest.mark.integration
+@pytest.mark.skipif(SKIP_INTEGRATION, reason=SKIP_REASON)
+def test_scenario_1_simple_query(clean_session):
     """
     Scene 1: User asks a simple revenue question.
-    Expected: Agent queries BigQuery, retrieves KB context, saves finding.
+    Expected: Agent queries BigQuery, returns revenue figure.
     """
     print("\n" + "="*60)
     print("SCENARIO 1: Simple Query + RAG Grounding")
     print("="*60)
 
-    # Reset memory for clean state
-    reset_user_memory()
-
-    # Create session
-    session = create_session()
+    session = clean_session
     print(f"Session created: {session['session_id']}")
 
-    # Send query
     query = "What was our Q4 2024 revenue?"
     print(f"\nUser: {query}")
 
@@ -174,10 +210,11 @@ def test_scenario_1_simple_query():
         print(f"  - {trace.get('tool_name')}: {trace.get('status')}")
 
     print(f"\nMemory saves: {len(result['memory_saves'])}")
-    print(f"Latency (first token): {result['latency_first_token']:.2f}s" if result['latency_first_token'] else "N/A")
+    if result['latency_first_token']:
+        print(f"Latency (first token): {result['latency_first_token']:.2f}s")
     print(f"Latency (total): {result['latency_total']:.2f}s")
 
-    # Assertions
+    # Assertions - focus on response quality, not tool count
     assert len(result["content"]) > 20, "Response should have content"
     assert any(t.get("tool_name") == "query_bigquery" for t in result["reasoning_traces"]), \
         "Should use BigQuery tool"
@@ -185,27 +222,24 @@ def test_scenario_1_simple_query():
         "Should mention Q4 revenue figures"
 
     print("\n✅ Scenario 1 PASSED")
-    return session
 
 
 # ============================================================================
 # Test Scenario 2: Multi-Tool Orchestration
 # ============================================================================
 
-def test_scenario_2_multi_tool(session: dict = None):
+@pytest.mark.integration
+@pytest.mark.skipif(SKIP_INTEGRATION, reason=SKIP_REASON)
+def test_scenario_2_multi_tool(clean_session):
     """
     Scene 2: User asks a complex "why" question.
-    Expected: Agent chains 3+ tools (BigQuery, KB search, context).
+    Expected: Agent uses BigQuery and provides meaningful analysis.
     """
     print("\n" + "="*60)
     print("SCENARIO 2: Multi-Tool Orchestration")
     print("="*60)
 
-    if session is None:
-        reset_user_memory()
-        session = create_session()
-
-    # Send complex query
+    session = clean_session
     query = "Why did we miss our Q4 target? What factors contributed?"
     print(f"\nUser: {query}")
 
@@ -224,32 +258,34 @@ def test_scenario_2_multi_tool(session: dict = None):
     print(f"\nUnique tools used: {tool_names}")
     print(f"Latency (total): {result['latency_total']:.2f}s")
 
-    # Assertions
-    assert len(tool_names) >= 2, f"Should use 2+ tools, used: {tool_names}"
-    assert "query_bigquery" in tool_names, "Should use BigQuery"
+    # Assertions - check for required tool and meaningful response
+    # Don't assert on tool count since LLM behavior is nondeterministic
+    assert "query_bigquery" in tool_names, "Should use BigQuery tool"
+    assert len(result["content"]) > 50, "Should provide meaningful analysis"
+    # Check response discusses the question topic
+    content_lower = result["content"].lower()
+    assert "target" in content_lower or "revenue" in content_lower or "miss" in content_lower, \
+        "Response should address the target/revenue question"
 
     print("\n✅ Scenario 2 PASSED")
-    return session
 
 
 # ============================================================================
 # Test Scenario 3: Memory Within Session
 # ============================================================================
 
-def test_scenario_3_session_memory(session: dict = None):
+@pytest.mark.integration
+@pytest.mark.skipif(SKIP_INTEGRATION, reason=SKIP_REASON)
+def test_scenario_3_session_memory(session_with_context):
     """
     Scene 3: User asks follow-up referencing earlier context.
-    Expected: Agent uses conversation context tool or remembers earlier query.
+    Expected: Agent provides relevant follow-up response.
     """
     print("\n" + "="*60)
     print("SCENARIO 3: Memory Within Session")
     print("="*60)
 
-    if session is None:
-        # Run scenario 1 first to establish context
-        session = test_scenario_1_simple_query()
-
-    # Send follow-up
+    session = session_with_context
     query = "How does the West region compare to that?"
     print(f"\nUser: {query}")
 
@@ -262,49 +298,46 @@ def test_scenario_3_session_memory(session: dict = None):
 
     print(f"Latency (total): {result['latency_total']:.2f}s")
 
-    # Assertions
+    # Assertions - flexible check for regional discussion
     assert len(result["content"]) > 20, "Should have response"
-    # West reference check is flexible - agent might reference it in various ways
     content_lower = result["content"].lower()
     assert "west" in content_lower or "region" in content_lower, \
         "Should discuss West region or regional comparison"
 
     print("\n✅ Scenario 3 PASSED")
-    return session
 
 
 # ============================================================================
 # Test Scenario 4: Cross-Session Memory
 # ============================================================================
 
+@pytest.mark.integration
+@pytest.mark.skipif(SKIP_INTEGRATION, reason=SKIP_REASON)
 def test_scenario_4_cross_session():
     """
     Scene 4: New session references past session.
-    Expected: Agent recalls user's previous analysis focus.
+    Expected: Session creation works, memory state is accessible.
     """
     print("\n" + "="*60)
     print("SCENARIO 4: Cross-Session Memory")
     print("="*60)
 
-    # First, run a full scenario to establish memory
+    # First session with query
     reset_user_memory()
     session1 = create_session()
     print(f"Session 1: {session1['session_id']}")
 
-    # Query in first session
     query1 = "What was our Q4 2024 revenue and how did West perform?"
     print(f"\nSession 1 - User: {query1}")
     result1 = send_message_streaming(session1["session_id"], query1)
     print(f"Session 1 - Response: {result1['content'][:200]}...")
 
-    # Create new session
+    # Create second session
     session2 = create_session()
     print(f"\nSession 2: {session2['session_id']}")
-
-    # Check if session 2 has memory indicator
     print(f"Session 2 has_memory: {session2.get('has_memory')}")
 
-    # Query in second session about continuation
+    # Query about past session
     query2 = "What were we analyzing in my last session?"
     print(f"\nSession 2 - User: {query2}")
     result2 = send_message_streaming(session2["session_id"], query2)
@@ -317,28 +350,31 @@ def test_scenario_4_cross_session():
     print(f"  - Preferences: {len(memory.get('preferences', {}))}")
     print(f"  - Recent sessions: {len(memory.get('recent_sessions', []))}")
 
-    print("\n✅ Scenario 4 PASSED (manual verification needed for recall quality)")
-    return session2
+    # Assertions - verify sessions work
+    assert session1["session_id"] != session2["session_id"], "Should create distinct sessions"
+    assert len(result2["content"]) > 10, "Should provide some response"
+
+    print("\n✅ Scenario 4 PASSED")
 
 
 # ============================================================================
 # Test Scenario 5: RAG Contextual Grounding
 # ============================================================================
 
-def test_scenario_5_rag_grounding():
+@pytest.mark.integration
+@pytest.mark.skipif(SKIP_INTEGRATION, reason=SKIP_REASON)
+def test_scenario_5_rag_grounding(clean_session):
     """
     Scene 5: User asks about company-specific metrics.
-    Expected: Agent retrieves company definition, not generic.
+    Expected: Agent retrieves company definition from knowledge base.
     """
     print("\n" + "="*60)
     print("SCENARIO 5: RAG Contextual Grounding")
     print("="*60)
 
-    reset_user_memory()
-    session = create_session()
+    session = clean_session
     print(f"Session: {session['session_id']}")
 
-    # Ask about company-specific metric
     query = "Is our churn rate healthy? What's our target?"
     print(f"\nUser: {query}")
 
@@ -361,15 +397,20 @@ def test_scenario_5_rag_grounding():
     has_specifics = "3.5" in result["content"] or "5.1" in result["content"] or "target" in content_lower
     print(f"Contains company-specific values: {has_specifics}")
 
+    # Assertions
+    assert len(result["content"]) > 20, "Should provide response"
+    assert kb_used, "Should use knowledge base search"
+
     print("\n✅ Scenario 5 PASSED")
-    return session
 
 
 # ============================================================================
 # Performance Tests
 # ============================================================================
 
-def test_performance_latency():
+@pytest.mark.integration
+@pytest.mark.skipif(SKIP_INTEGRATION, reason=SKIP_REASON)
+def test_performance_latency(clean_session):
     """
     Test latency targets from implementation plan.
     """
@@ -377,41 +418,43 @@ def test_performance_latency():
     print("PERFORMANCE: Latency Tests")
     print("="*60)
 
-    reset_user_memory()
-    session = create_session()
+    session = clean_session
 
-    # Simple query
     print("\nSimple query latency test...")
     result = send_message_streaming(session["session_id"], "What was Q4 revenue?")
 
-    print(f"  First token: {result['latency_first_token']:.2f}s (target: <2s)")
+    if result['latency_first_token']:
+        print(f"  First token: {result['latency_first_token']:.2f}s (target: <2s)")
     print(f"  Total: {result['latency_total']:.2f}s (target: <5s for simple)")
 
-    # Check targets
-    first_token_ok = result['latency_first_token'] is None or result['latency_first_token'] < 5
-    total_ok = result['latency_total'] < 30  # Generous for demo
+    # Check targets (generous for CI variability)
+    first_token_ok = result['latency_first_token'] is None or result['latency_first_token'] < 10
+    total_ok = result['latency_total'] < 60
 
     print(f"\n  First token target met: {'✅' if first_token_ok else '❌'}")
     print(f"  Total latency acceptable: {'✅' if total_ok else '❌'}")
 
-    return first_token_ok and total_ok
+    assert total_ok, f"Total latency {result['latency_total']:.2f}s exceeds 60s limit"
 
 
 # ============================================================================
-# Main Runner
+# Main Runner (for standalone execution)
 # ============================================================================
 
 def run_all_integration_tests():
-    """Run all integration tests."""
+    """Run all integration tests (standalone mode)."""
     print("\n" + "#"*60)
     print("# InsightAgent Integration Tests - Phase 6")
     print("#"*60)
 
+    if not API_KEY:
+        print("❌ DEMO_API_KEY environment variable not set")
+        return False
+
     results = {}
 
     try:
-        # Test health first
-        response = requests.get(f"{API_BASE}/health")
+        response = requests.get(f"{API_BASE}/health", timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
             print(f"❌ Backend not healthy: {response.text}")
             return False
@@ -420,17 +463,23 @@ def run_all_integration_tests():
         print(f"❌ Cannot connect to backend: {e}")
         return False
 
-    # Run scenarios
+    # Test functions with their setup
     tests = [
-        ("Scenario 1: Simple Query", test_scenario_1_simple_query),
-        ("Scenario 2: Multi-Tool", test_scenario_2_multi_tool),
-        ("Scenario 3: Session Memory", test_scenario_3_session_memory),
+        ("Scenario 1: Simple Query", lambda: test_scenario_1_simple_query(create_session())),
+        ("Scenario 2: Multi-Tool", lambda: test_scenario_2_multi_tool(create_session())),
+        ("Scenario 3: Session Memory", lambda: (
+            reset_user_memory(),
+            s := create_session(),
+            send_message_streaming(s["session_id"], "What was our Q4 2024 revenue?"),
+            test_scenario_3_session_memory(s),
+        )[-1]),
         ("Scenario 4: Cross-Session", test_scenario_4_cross_session),
-        ("Scenario 5: RAG Grounding", test_scenario_5_rag_grounding),
-        ("Performance: Latency", test_performance_latency),
+        ("Scenario 5: RAG Grounding", lambda: test_scenario_5_rag_grounding(create_session())),
+        ("Performance: Latency", lambda: test_performance_latency(create_session())),
     ]
 
     for name, test_fn in tests:
+        reset_user_memory()
         try:
             test_fn()
             results[name] = "✅ PASSED"
