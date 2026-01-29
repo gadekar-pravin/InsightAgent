@@ -1,6 +1,6 @@
 # InsightAgent Implementation Progress
 
-**Last Updated:** 2026-01-29 (Phase 7 Deployment In Progress)
+**Last Updated:** 2026-01-29 (All Phases Complete ✅)
 
 ---
 
@@ -337,9 +337,9 @@ relevance_score = float(score) if score else 0.5
 
 ---
 
-### Phase 7: Deployment 🔄
+### Phase 7: Deployment ✅
 
-**Status:** In Progress (Backend ✅, Frontend needs Firebase Console setup or Cloud Run deploy)
+**Status:** Complete
 
 ### 7.1 Backend Deployment (Cloud Run) ✅
 
@@ -351,55 +351,65 @@ relevance_score = float(score) if score else 0.5
 | Environment variables | ✅ | All configured |
 | Service account | ✅ | `insightagent-sa@insightagent-adk.iam.gserviceaccount.com` |
 
-**Cloud Run Service:**
+**Cloud Run Backend Service:**
 - **URL:** `https://insightagent-650676557784.asia-south1.run.app`
 - **Region:** asia-south1
 - **Memory:** 2GB, CPU: 2
 - **Min/Max Instances:** 0/5
 
-### 7.2 Frontend Deployment ⏸️
+### 7.2 Frontend Deployment (Cloud Run) ✅
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Firebase configuration | ✅ | `firebase.json`, `.firebaserc` created |
-| Production build | ✅ | `npm run build` successful |
-| Firebase project setup | ❌ | Requires console ToS acceptance |
-| Cloud Run alternative | 🔄 | Dockerfile + nginx.conf created |
+| Dockerfile | ✅ | Multi-stage build (node → nginx) |
+| nginx.conf | ✅ | API proxy to backend, SPA routing |
+| Docker image build | ✅ | Via Cloud Build |
+| Cloud Run deployment | ✅ | Service live and healthy |
 
-**Firebase Hosting Issue:**
-Firebase CLI requires the project to be added to Firebase via console first (Terms of Service acceptance).
-The `firebase projects:addfirebase` command fails with permission denied even with `roles/firebase.admin`.
+**Cloud Run Frontend Service:**
+- **URL:** `https://insightagent-frontend-650676557784.asia-south1.run.app`
+- **Region:** asia-south1
+- **Memory:** 512Mi, CPU: 1
+- **Min/Max Instances:** 0/5
 
-**Option A: Firebase Console Setup (Recommended)**
-1. Go to https://console.firebase.google.com/
-2. Click "Add project" → Select existing GCP project `insightagent-adk`
-3. Accept Terms of Service
-4. Then run:
-   ```bash
-   cd frontend
-   firebase deploy --only hosting
-   ```
+### 7.3 Post-Deployment Verification ✅
 
-**Option B: Cloud Run Frontend (Alternative)**
-Deploy frontend as a separate Cloud Run service with nginx proxy:
-```bash
-cd frontend
-gcloud builds submit --tag=asia-south1-docker.pkg.dev/insightagent-adk/insightagent/frontend:latest --project=insightagent-adk --region=asia-south1
-gcloud run deploy insightagent-frontend --image=asia-south1-docker.pkg.dev/insightagent-adk/insightagent/frontend:latest --project=insightagent-adk --region=asia-south1 --allow-unauthenticated
+| Task | Status | Notes |
+|------|--------|-------|
+| Update CORS origins | ✅ | Backend allows frontend URL |
+| Backend health check | ✅ | Returns `{"status":"healthy"}` |
+| Frontend health check | ✅ | Returns `{"status":"healthy"}` |
+| Session creation | ✅ | Works through frontend proxy |
+| SSE chat streaming | ✅ | Full end-to-end flow working |
+
+**End-to-End Test Result:**
+```
+✅ Created session: 9db5d7e8-a2b7-408c-a3c5-648fbc55da74
+✅ Query: "What was our Q4 2024 revenue?"
+✅ Response: "$12,765,996" with reasoning trace
+✅ Suggested followups: ["Can you break this down by region?", "How does this compare to last quarter?"]
 ```
 
-**Files Created for Cloud Run Alternative:**
-- `frontend/Dockerfile` - Multi-stage build (node → nginx)
-- `frontend/nginx.conf` - API proxy to backend, SPA routing
+### 7.4 Production URLs
 
-### 7.3 Post-Deployment Tasks ⬜
+| Service | URL |
+|---------|-----|
+| **Frontend** | https://insightagent-frontend-650676557784.asia-south1.run.app |
+| **Backend API** | https://insightagent-650676557784.asia-south1.run.app |
+| **API Docs** | https://insightagent-650676557784.asia-south1.run.app/docs |
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Complete frontend deployment | ⬜ | Choose Option A or B above |
-| Update CORS origins | ⬜ | Add frontend URL to backend |
-| Verify end-to-end | ⬜ | Test chat flow on production |
-| Warm-up instances | ⬜ | Set min-instances=1 before demo |
+### 7.5 Optional: Warm-up Instances for Demo
+
+To reduce cold start latency before a demo:
+```bash
+# Set min instances to 1 for both services
+gcloud run services update insightagent --project=insightagent-adk --region=asia-south1 --min-instances=1
+gcloud run services update insightagent-frontend --project=insightagent-adk --region=asia-south1 --min-instances=1
+
+# After demo, set back to 0 to save costs
+gcloud run services update insightagent --project=insightagent-adk --region=asia-south1 --min-instances=0
+gcloud run services update insightagent-frontend --project=insightagent-adk --region=asia-south1 --min-instances=0
+```
 
 ---
 
