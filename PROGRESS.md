@@ -72,12 +72,14 @@
    - Function calling for tool orchestration
    - Agentic loop (up to 10 iterations)
    - Streams reasoning traces, content, and memory events
+   - Async Gemini calls via `asyncio.to_thread()` to avoid blocking event loop
 
 2. **Tools Implemented**:
    - `query_bigquery` - Executes validated SQL, returns structured data
    - `search_knowledge_base` - RAG retrieval from corpus
    - `get_conversation_context` - Session/preferences/past analyses
    - `save_to_memory` - Persists findings, preferences, context
+   - Tool definitions loaded via `get_tool_definitions()` to defer ADC lookup
 
 3. **Security Features**:
    - SQL injection prevention (prohibited keywords, dry-run)
@@ -86,12 +88,20 @@
    - PII redaction in logs
    - User ID validation (path traversal prevention)
 
+4. **Code Review Fixes Applied**:
+   - **Firestore atomicity**: Uses `@firestore.transactional` for atomic nested field updates
+   - **ADC resolution**: BigQuery/Gemini clients pass `None` instead of empty string for project
+   - **Lazy tool loading**: Deferred `get_bigquery_dataset()` to runtime to avoid import-time ADC
+   - **Async safety**: Wrapped sync `generate_content()` with `asyncio.to_thread()`
+   - **RAG semantics**: Convert relevance threshold to distance (`1 - relevance`) for correct filtering
+
 **Test Results:**
 ```
 ✅ BigQuery: Q4 revenue query returns 4 regions, $12.77M total
 ✅ RAG: Knowledge search returns relevant documents
-✅ Firestore: Memory save/retrieve/reset works
+✅ Firestore: Atomic transactions preserve all nested keys
 ✅ Agent: Multi-tool chaining works (8 tools in one query)
+✅ Imports: No ADC triggered at import time
 ```
 
 ---
