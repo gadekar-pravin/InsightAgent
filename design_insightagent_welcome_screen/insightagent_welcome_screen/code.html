@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InsightAgent Welcome Screen</title>
+<script type="text/javascript" nonce="a784db617b8f428f8f76d39b8c2" src="//local.adguard.org?ts=1769693462282&amp;type=content-script&amp;dmn=contribution.usercontent.google.com&amp;url=https%3A%2F%2Fcontribution.usercontent.google.com%2Fdownload%3Fc%3DCgthaWRhX2NvZGVmeBJ6Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpZCiVodG1sX2Q5YjMyODQwMDNjMDQ2MTRhNDNkNjE4MDhhYmVjMmVkEgsSBxDL1cvFnxsYAZIBIgoKcHJvamVjdF9pZBIUQhI1MjM3OTU2MzA1ODE4NTIwMDg%26filename%3D%26opi%3D89354086&amp;app=com.google.Chrome&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script><script type="text/javascript" nonce="a784db617b8f428f8f76d39b8c2" src="//local.adguard.org?ts=1769693462282&amp;name=AdGuard%20Extra&amp;type=user-script"></script><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Manrope', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#0d141b] dark:text-slate-200 transition-colors duration-200">
+<div class="flex flex-col h-screen overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex items-center justify-between border-b border-solid border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark px-6 py-3 shrink-0">
+<div class="flex items-center gap-4">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+<h2 class="text-xl font-bold leading-tight tracking-tight">InsightAgent</h2>
+</div>
+<div class="flex flex-1 justify-end items-center gap-4">
+<div class="flex items-center gap-2">
+<button class="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="3 saved findings">
+<span class="material-symbols-outlined text-base">bookmark</span>
+<span class="hidden sm:inline text-xs">3</span>
+<span class="hidden md:inline text-xs">saved</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Session history">
+<span class="material-symbols-outlined">history</span>
+</button>
+</div>
+<div class="h-10 w-10 rounded-full border-2 border-primary/20 bg-cover bg-center ml-2" data-alt="User profile avatar of Sarah" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCBE2bzOxZK5JD7hPNPC1S2LAtrvRn_RYa6TjLY3d3Pg2J97rVObAX8mDUTZGP5j1zKYKh6aTnNSjNHle24_bj6WJTDS7RvqcZ1Xb4ELCqTJEtE0ZisCNZsONUrNX_Bfe_rOewePSLDXTEyJVIC__e9vVOfj-hMZ_C3pNAkJWUUDtaZbwKOMojAGd_WNfwnbD4G1_8LzLTFTqOAcZ_FhXc1R4Bg7L-O6-Uqk-uZfNRTXuZJ-bP7kR9SFueXvQJQN1MjwtmuWBh_tA')">
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex flex-1 overflow-hidden relative">
+<!-- Left 2/3: Chat/Welcome Area -->
+<section class="w-full lg:w-2/3 flex flex-col h-full bg-slate-50 dark:bg-slate-900/20 overflow-y-auto">
+<div class="max-w-[800px] w-full mx-auto px-6 py-12 flex flex-col flex-1">
+<!-- HeadlineText -->
+<div class="mb-10">
+<h1 class="text-[#0d141b] dark:text-white tracking-tight text-4xl font-extrabold leading-tight">Welcome back, Sarah</h1>
+<p class="text-slate-500 dark:text-slate-400 mt-2 text-lg">What can I help you analyze today?</p>
+</div>
+<!-- ImageGrid / Question Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
+<!-- Card 1 -->
+<div class="group flex flex-col gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+<div class="w-11 h-11 bg-blue-50 dark:bg-blue-900/30 text-primary rounded-lg flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">payments</span>
+</div>
+<div>
+<p class="text-[#0d141b] dark:text-white text-base font-bold leading-normal">What was our Q4 2024 revenue?</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal mt-1">View total income trends and targets</p>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="group flex flex-col gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+<div class="w-11 h-11 bg-blue-50 dark:bg-blue-900/30 text-primary rounded-lg flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">public</span>
+</div>
+<div>
+<p class="text-[#0d141b] dark:text-white text-base font-bold leading-normal">Compare regional performance</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal mt-1">See sales performance by territory</p>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="group flex flex-col gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+<div class="w-11 h-11 bg-blue-50 dark:bg-blue-900/30 text-primary rounded-lg flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">military_tech</span>
+</div>
+<div>
+<p class="text-[#0d141b] dark:text-white text-base font-bold leading-normal">Who are the top 5 performing reps?</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal mt-1">Rank team by deal volume and closing rate</p>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="group flex flex-col gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+<div class="w-11 h-11 bg-blue-50 dark:bg-blue-900/30 text-primary rounded-lg flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-xl">warning</span>
+</div>
+<div>
+<p class="text-[#0d141b] dark:text-white text-base font-bold leading-normal">Identify churn risks this month</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal mt-1">Predictive customer analysis and health scores</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Input Field Fixed at Bottom of Left Section -->
+<div class="mt-auto p-6 bg-transparent">
+<div class="max-w-[800px] mx-auto relative">
+<div class="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-2 shadow-md">
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-[#0d141b] dark:text-white placeholder:text-slate-400 py-3 px-3 text-base" placeholder="Ask InsightAgent a question about your sales data..." maxlength="4000"/>
+<span class="text-xs text-slate-400 mr-2">0 / 4,000</span>
+<button class="bg-primary text-white p-3 rounded-lg flex items-center justify-center hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+<p class="text-center text-[11px] text-slate-400 mt-3">InsightAgent can make mistakes. Check important info.</p>
+</div>
+</div>
+</section>
+<!-- Right 1/3: Reasoning Panel -->
+<aside class="hidden lg:flex w-1/3 flex-col bg-white dark:bg-background-dark border-l border-slate-200 dark:border-slate-800 h-full">
+<div class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+<h3 class="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">psychology</span>
+                        Reasoning Panel
+                    </h3>
+<span class="material-symbols-outlined text-slate-400 text-sm cursor-help">info</span>
+</div>
+<!-- EmptyState -->
+<div class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+<div class="w-full flex flex-col items-center gap-5 rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 px-6 py-12">
+<div class="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-3xl">psychology</span>
+</div>
+<div class="flex max-w-[280px] flex-col items-center gap-3">
+<p class="text-[#0d141b] dark:text-slate-200 text-base font-bold leading-tight tracking-tight">Step-by-step analysis</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">
+                                Watch the AI work in real-time:
+                            </p>
+<ul class="text-left text-xs text-slate-500 dark:text-slate-400 space-y-1.5 mt-1">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+<span>Query your sales database</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+<span>Search company policies</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+<span>Generate insights</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-slate-400">auto_awesome</span>
+<div>
+<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">AI Transparency</p>
+<p class="text-xs text-slate-400 mt-1">This panel shows which SQL queries were executed and how the AI interpreted the raw data results.</p>
+</div>
+</div>
+</div>
+</aside>
+</main>
+</div>
+</body></html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InsightAgent | Active Chat &amp; Reasoning Trace</title>
+<script type="text/javascript" nonce="a784db617b8f428f8f76d39b8c2" src="//local.adguard.org?ts=1769693462282&amp;type=content-script&amp;dmn=contribution.usercontent.google.com&amp;url=https%3A%2F%2Fcontribution.usercontent.google.com%2Fdownload%3Fc%3DCgthaWRhX2NvZGVmeBJ6Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpZCiVodG1sX2Q3NTRiNDZjMDAyMTRiYWNiN2Y3YzU5NjExNzA0ZTkxEgsSBxDL1cvFnxsYAZIBIgoKcHJvamVjdF9pZBIUQhI1MjM3OTU2MzA1ODE4NTIwMDg%26filename%3D%26opi%3D89354086&amp;app=com.google.Chrome&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script><script type="text/javascript" nonce="a784db617b8f428f8f76d39b8c2" src="//local.adguard.org?ts=1769693462282&amp;name=AdGuard%20Extra&amp;type=user-script"></script><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .reasoning-line {
+            width: 2px;
+            background: #e7edf3;
+            position: absolute;
+            top: 24px;
+            bottom: 0;
+            left: 11px;
+        }
+        .dark .reasoning-line {
+            background: #1e293b;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+            animation: spin 2s linear infinite;
+        }
+        /* Hide scrollbar but keep scroll functionality */
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#0d141b] dark:text-slate-50 transition-colors duration-200">
+<div class="flex h-screen overflow-hidden">
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col relative overflow-hidden">
+<!-- Header -->
+<header class="h-16 border-b border-[#e7edf3] dark:border-slate-800 bg-white/80 dark:bg-[#16222c]/80 backdrop-blur-md flex items-center justify-between px-8 z-10">
+<div class="flex items-center gap-4">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+<h2 class="text-xl font-bold leading-tight tracking-tight">InsightAgent</h2>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="3 saved findings">
+<span class="material-symbols-outlined text-base">bookmark</span>
+<span class="hidden sm:inline text-xs">3</span>
+<span class="hidden md:inline text-xs">saved</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Session history">
+<span class="material-symbols-outlined">history</span>
+</button>
+<div class="h-10 w-10 rounded-full border-2 border-primary/20 bg-cover bg-center ml-2" data-alt="User profile avatar of Sarah" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAwW_yz576tl3EXY1LBlP_gJp8lslOL3uhMwaTOVTsZU8sV0qBr10sGWD4AQ14rDgl5jHPgDjRqf8wVJelFwB3CM9jwD93gwuHsvNKiO-9NiW0DC-yjiwyv2YOcvsuASE-u6qnZKjRKG7W71qKit0sK8qn0GYdqR0CS-6VR0QyoBroOzVCE408PQKfm3tQGleOKM8fcte0fnxEf2ot07mLX7kCgvM4oTE-hTGNh9veg_32-DxF9Z0yTDtcxI0qIRZ7DO8fFdvAeIA')">
+</div>
+</div>
+</header>
+<!-- Chat Interface Scrollable -->
+<div class="flex-1 overflow-y-auto p-8 space-y-8 scroll-smooth">
+<!-- User Message -->
+<div class="flex gap-4 max-w-3xl ml-auto justify-end">
+<div class="flex flex-col gap-1.5 items-end">
+<p class="text-sm font-bold opacity-60">You</p>
+<div class="bg-blue-500/90 text-white p-4 rounded-xl rounded-tr-none shadow-sm">
+<p class="text-base leading-relaxed font-medium">How is the West region performing compared to last quarter?</p>
+</div>
+</div>
+</div>
+<!-- AI Response -->
+<div class="flex gap-4 max-w-4xl">
+<div class="size-10 rounded-lg bg-primary/10 dark:bg-primary/20 flex-shrink-0 flex items-center justify-center">
+<svg class="size-6 text-primary" fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path d="M6 6H42L36 24L42 42H6L12 24L6 6Z" fill="currentColor"></path></svg>
+</div>
+<div class="flex flex-col gap-1.5 flex-1">
+<p class="text-sm font-bold text-primary">InsightAgent</p>
+<div class="space-y-4">
+<p class="text-base leading-relaxed">
+                                The West region is showing strong growth this quarter. Here are the performance metrics compared to Q3:
+                            </p>
+<!-- Data Table -->
+<div class="overflow-hidden rounded-xl border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-[#1a2632] shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-[#cfdbe7] dark:border-slate-800">
+<th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-[#4c739a]">Metric</th>
+<th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-[#4c739a]">Q3</th>
+<th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-[#4c739a]">Q4</th>
+<th class="px-4 py-3 text-xs font-bold uppercase tracking-wider text-[#4c739a] text-right">% Change</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#cfdbe7] dark:divide-slate-800">
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-4 py-4 text-sm font-semibold">Total Revenue</td>
+<td class="px-4 py-4 text-sm">$1.2M</td>
+<td class="px-4 py-4 text-sm">$1.38M</td>
+<td class="px-4 py-4 text-right">
+<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold">
+                                                    +15.2%
+                                                </span>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-4 py-4 text-sm font-semibold">Active Accounts</td>
+<td class="px-4 py-4 text-sm">450</td>
+<td class="px-4 py-4 text-sm">482</td>
+<td class="px-4 py-4 text-right">
+<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold">
+                                                    +7.1%
+                                                </span>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-4 py-4 text-sm font-semibold">Avg Deal Size</td>
+<td class="px-4 py-4 text-sm">$2.6k</td>
+<td class="px-4 py-4 text-sm">$2.8k</td>
+<td class="px-4 py-4 text-right">
+<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold">
+                                                    +7.6%
+                                                </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Bullet Points -->
+<div class="space-y-2">
+<h4 class="font-bold text-sm">Key Takeaways:</h4>
+<ul class="space-y-1.5 list-none">
+<li class="flex items-start gap-2 text-sm">
+<span class="text-primary mt-1 text-xs">•</span>
+<span>Growth is primarily driven by the <strong>Enterprise SaaS</strong> product line which saw a 24% increase.</span>
+</li>
+<li class="flex items-start gap-2 text-sm">
+<span class="text-primary mt-1 text-xs">•</span>
+<span>The West region has reduced its average sales cycle by <strong>12 days</strong> compared to Q3.</span>
+</li>
+</ul>
+</div>
+<!-- Streaming Indicator (Current Task) -->
+<div class="flex items-center gap-2 text-sm text-primary">
+<span class="material-symbols-outlined text-base animate-spin-slow">progress_activity</span>
+<span>Generating additional breakdown by account manager...</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer area with Chips and Input -->
+<div class="p-4 bg-white dark:bg-[#16222c] border-t border-[#e7edf3] dark:border-slate-800 space-y-3">
+<!-- Action Chips - horizontal scroll on mobile -->
+<div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+<button class="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium hover:border-primary hover:text-primary transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+                        Drill down by product
+                    </button>
+<button class="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium hover:border-primary hover:text-primary transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+<span class="material-symbols-outlined text-sm">compare_arrows</span>
+                        Compare with East region
+                    </button>
+<button class="px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-600 hover:border-primary hover:text-primary transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0">
+<span class="material-symbols-outlined text-sm">bookmark_border</span>
+                        Save insight
+                    </button>
+</div>
+<!-- Message Input -->
+<div class="relative">
+<input class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg py-3 pl-4 pr-28 text-sm focus:ring-2 focus:ring-primary/50 transition-all dark:placeholder-slate-500" placeholder="Ask a follow-up question..." type="text" maxlength="4000"/>
+<div class="absolute right-2 top-1.5 bottom-1.5 flex items-center gap-2">
+<span class="text-[10px] text-slate-400 hidden sm:block">0 / 4,000</span>
+<button class="bg-primary text-white p-2 rounded-lg hover:bg-primary/90 shadow-sm">
+<span class="material-symbols-outlined text-lg">send</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Reasoning Trace Panel (Right Side) -->
+<aside class="w-80 border-l border-[#e7edf3] dark:border-slate-800 bg-white dark:bg-[#16222c] flex-col hidden lg:flex">
+<div class="p-6 border-b border-[#e7edf3] dark:border-slate-800 flex justify-between items-center">
+<h3 class="font-bold text-sm tracking-tight flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">psychology</span>
+                    Reasoning Trace
+                </h3>
+<span class="material-symbols-outlined text-[#4c739a] cursor-pointer hover:text-[#0d141b] transition-colors">close_fullscreen</span>
+</div>
+<div class="flex-1 overflow-y-auto p-6 space-y-8 relative">
+<!-- Reasoning Step 1 -->
+<div class="relative flex gap-4">
+<div class="reasoning-line"></div>
+<div class="relative z-10 size-6 rounded-full bg-green-500 text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-base">check</span>
+</div>
+<div class="flex-1">
+<h4 class="text-xs font-bold text-[#0d141b] dark:text-slate-100">Checking sales data...</h4>
+<p class="text-[11px] text-[#4c739a] mt-1">Found permissions for 'Sales_West_Prod' database.</p>
+<span class="text-[10px] text-[#4c739a] font-medium mt-1 inline-block">0.2s</span>
+</div>
+</div>
+<!-- Reasoning Step 2 -->
+<div class="relative flex gap-4">
+<div class="reasoning-line"></div>
+<div class="relative z-10 size-6 rounded-full bg-green-500 text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-base">check</span>
+</div>
+<div class="flex-1">
+<h4 class="text-xs font-bold text-[#0d141b] dark:text-slate-100">Querying BigQuery...</h4>
+<p class="text-[11px] text-[#4c739a] mt-1 font-mono truncate max-w-[200px] cursor-pointer hover:text-clip" title="SELECT * FROM regional_metrics WHERE region='West' AND year=2024">SELECT * FROM regional_metrics WHERE...</p>
+<div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold">
+<span class="material-symbols-outlined text-xs">table_rows</span>
+                            42 rows returned
+                        </div>
+<br/>
+<span class="text-[10px] text-[#4c739a] font-medium mt-1 inline-block">1.4s</span>
+</div>
+</div>
+<!-- Reasoning Step 3 (Active) -->
+<div class="relative flex gap-4">
+<div class="relative z-10 size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-base animate-spin-slow">progress_activity</span>
+</div>
+<div class="flex-1">
+<h4 class="text-xs font-bold text-primary">Calculating variance...</h4>
+<p class="text-[11px] text-[#4c739a] mt-1">Computing Q4 vs Q3 percentage deltas for 12 KPIs.</p>
+<div class="mt-3 w-full bg-slate-100 dark:bg-slate-800 h-1 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[65%]" style="transition: width 0.5s ease"></div>
+</div>
+</div>
+</div>
+<!-- Upcoming Step -->
+<div class="relative flex gap-4 opacity-40">
+<div class="relative z-10 size-6 rounded-full border-2 border-slate-300 dark:border-slate-700 bg-transparent flex items-center justify-center">
+</div>
+<div class="flex-1">
+<h4 class="text-xs font-bold">Summarizing insights...</h4>
+<p class="text-[11px] mt-1 italic">Waiting for analysis...</p>
+</div>
+</div>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-800/30 m-4 rounded-xl border border-[#e7edf3] dark:border-slate-800">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-base text-yellow-500">bolt</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-[#4c739a]">Current Context</span>
+</div>
+<div class="space-y-1">
+<div class="flex justify-between text-[10px]">
+<span class="text-[#4c739a]">Model</span>
+<span class="font-bold">Gemini 2.5 Flash</span>
+</div>
+<div class="flex justify-between text-[10px]">
+<span class="text-[#4c739a]">Latency</span>
+<span class="font-bold">1,842ms</span>
+</div>
+<div class="flex justify-between text-[10px]">
+<span class="text-[#4c739a]">Token usage</span>
+<span class="font-bold">Low (1.2k)</span>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</body></html>

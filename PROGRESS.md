@@ -1,6 +1,6 @@
 # InsightAgent Implementation Progress
 
-**Last Updated:** 2026-01-29 (Phase 3 Complete)
+**Last Updated:** 2026-01-29 (Phase 5 Design Complete)
 
 ---
 
@@ -161,18 +161,50 @@
 
 ## Next Phase: Phase 5 - Frontend Implementation
 
-**Status:** Not started
+**Status:** UI Design Complete, React Implementation Next
 
-### 5.1 Project Setup
+### 5.0 UI Design ✅
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Design Brief | ✅ | Created `DESIGN_BRIEF.md` with requirements |
+| Welcome Screen | ✅ | Designer delivered, reviewed, refined |
+| Active Chat Screen | ✅ | Designer delivered, reviewed, refined |
+| Design Feedback | ✅ | Created `DESIGN_FEEDBACK.md` |
+| Design Refinements | ✅ | Applied all polish suggestions |
+
+**Design Deliverables:** `design_insightagent_welcome_screen/`
+- `insightagent_welcome_screen/` - Welcome state with question cards
+- `active_chat_&_reasoning_trace/` - Chat with reasoning panel
+- Each contains `screen.png` (visual) and `code.html` (TailwindCSS implementation)
+
+**Design Features Implemented:**
+- 2-panel layout (chat + reasoning trace)
+- Responsive memory indicator (icon on mobile, text on desktop)
+- Soft card shadows instead of hard borders
+- SQL truncation with hover expand
+- Horizontal scrollable chips on mobile
+- Consistent spinner for loading states
+- Softer user bubble color for better content focus
+
+**Out of Scope (Removed from v1):**
+- File attachments, microphone input
+- Share/Export buttons
+- Left sidebar navigation
+- Dashboard/Reports/Analytics pages
+
+### 5.1 Project Setup (Next Session)
 - [ ] Initialize React 18 project with Vite
 - [ ] Configure TypeScript and TailwindCSS
 - [ ] Set up project structure
+- [ ] Convert HTML designs to React components
 
 ### 5.2 Core Components
 - [ ] Chat interface with message bubbles
 - [ ] Reasoning trace collapsible panel
 - [ ] Memory indicator in session bar
 - [ ] Suggested follow-ups chips
+- [ ] Data table component
 
 ### 5.3 SSE Integration
 - [ ] EventSource client for SSE
@@ -185,7 +217,7 @@
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 5 | Frontend (React, reasoning trace UI) | ⬜ Next |
+| Phase 5 | Frontend (React, reasoning trace UI) | 🔄 Design Done, Implementation Next |
 | Phase 6 | Integration & Testing | ⬜ |
 | Phase 7 | Deployment (Cloud Run, Firebase) | ⬜ |
 
@@ -278,6 +310,14 @@ InsightAgent/
 │           ├── __init__.py
 │           ├── auth.py           # ✅ API key authentication
 │           └── routes.py         # ✅ API endpoints
+├── design_insightagent_welcome_screen/  # ✅ UI Design Deliverables
+│   ├── insightagent_welcome_screen/
+│   │   ├── screen.png            # Welcome screen visual
+│   │   └── code.html             # TailwindCSS implementation
+│   ├── active_chat_&_reasoning_trace/
+│   │   ├── screen.png            # Chat screen visual
+│   │   └── code.html             # TailwindCSS implementation
+│   └── _screenshots/             # Annotated review screenshots
 ├── knowledge_base/
 │   ├── metrics_definitions.md
 │   ├── company_targets_2024.md
@@ -295,6 +335,8 @@ InsightAgent/
 ├── tests/
 │   ├── __init__.py
 │   └── test_demo_data.py
+├── DESIGN_BRIEF.md            # ✅ UI requirements for designer
+├── DESIGN_FEEDBACK.md         # ✅ Design review notes
 ├── GCP_SETUP.md
 ├── IMPLEMENTATION_PLAN.md
 └── PROGRESS.md                # This file
