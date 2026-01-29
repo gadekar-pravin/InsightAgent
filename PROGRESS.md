@@ -87,6 +87,7 @@
    - Cost limits via `maximum_bytes_billed`
    - PII redaction in logs
    - User ID validation (path traversal prevention)
+   - API key authentication via `app/api/auth.py`
 
 4. **Code Review Fixes Applied**:
    - **Firestore atomicity**: Uses `@firestore.transactional` for atomic nested field updates
@@ -94,6 +95,9 @@
    - **Lazy tool loading**: Deferred `get_bigquery_dataset()` to runtime to avoid import-time ADC
    - **Async safety**: Wrapped sync `generate_content()` with `asyncio.to_thread()`
    - **RAG semantics**: Convert relevance threshold to distance (`1 - relevance`) for correct filtering
+   - **Circular import fix**: Moved `verify_api_key` to `app/api/auth.py`
+   - **Pydantic defaults**: Use `Field(default_factory=...)` instead of mutable `[]`/`{}`
+   - **Relevance score bug**: Fixed `distance=0.0` case using `is not None` check
 
 **Test Results:**
 ```
@@ -101,36 +105,42 @@
 ✅ RAG: Knowledge search returns relevant documents
 ✅ Firestore: Atomic transactions preserve all nested keys
 ✅ Agent: Multi-tool chaining works (8 tools in one query)
-✅ Imports: No ADC triggered at import time
+✅ Imports: No circular import, no ADC at import time
+✅ FastAPI: App imports and starts successfully
 ```
 
 ---
 
 ## Next Phase: Phase 3 - API Layer Implementation
 
-### 3.1 FastAPI Application
+**Status:** Scaffolding complete, needs testing and refinement
+
+### 3.1 FastAPI Application ✅
 **File:** `backend/app/main.py`
 
-- Initialize FastAPI with CORS
-- Add API key authentication
-- Configure SSE streaming support
-- Set up error handling middleware
+- [x] Initialize FastAPI with CORS
+- [x] API key authentication (moved to `auth.py`)
+- [x] Lifespan handler for Vertex AI init
+- [ ] Add heartbeat/keepalive for SSE
+- [ ] Add request logging middleware
 
-### 3.2 API Endpoints
+### 3.2 API Endpoints ✅
 **File:** `backend/app/api/routes.py`
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/chat/session` | POST | Create new chat session |
-| `/chat/message` | POST | Send message, receive SSE stream |
-| `/chat/history/{session_id}` | GET | Retrieve conversation history |
-| `/user/memory` | GET | Retrieve user's persistent memory |
-| `/user/memory/reset` | DELETE | Reset user memory (demo feature) |
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/chat/session` | POST | ✅ | Create new chat session |
+| `/chat/message` | POST | ✅ | Send message, receive SSE stream |
+| `/chat/history/{session_id}` | GET | ⬜ | Retrieve conversation history |
+| `/user/memory` | GET | ✅ | Retrieve user's persistent memory |
+| `/user/memory/reset` | DELETE | ✅ | Reset user memory (demo feature) |
 
-### 3.3 Streaming Response
-- SSE event types: `reasoning`, `content`, `memory`, `done`
-- Monotonic sequence IDs for reconnection
-- Heartbeat events (every 15s)
+### 3.3 Remaining Work for Phase 3
+- [ ] Test SSE streaming end-to-end with curl/httpie
+- [ ] Implement conversation history endpoint
+- [ ] Add heartbeat events (every 15s) for SSE
+- [ ] Add request/response logging
+- [ ] Test error handling scenarios
 
 ---
 
@@ -138,7 +148,7 @@
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 3 | API Layer (FastAPI, SSE streaming) | ⬜ Next |
+| Phase 3 | API Layer (FastAPI, SSE streaming) | 🔄 In Progress |
 | Phase 5 | Frontend (React, reasoning trace UI) | ⬜ |
 | Phase 6 | Integration & Testing | ⬜ |
 | Phase 7 | Deployment (Cloud Run, Firebase) | ⬜ |
@@ -164,7 +174,23 @@ source .venv/bin/activate
 
 ### Test Commands
 ```bash
-# Test agent directly
+# Start the FastAPI server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
+
+# Test health endpoint
+curl http://localhost:8080/health
+
+# Test create session (no API key in dev mode)
+curl -X POST http://localhost:8080/api/chat/session \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "test_user"}'
+
+# Test SSE streaming
+curl -X POST http://localhost:8080/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "<session_id>", "user_id": "test_user", "content": "What was our Q4 revenue?"}'
+
+# Test agent directly (bypassing API)
 python -c "
 import asyncio
 from app.agent.insight_agent import InsightAgent
@@ -173,19 +199,6 @@ async def test():
     agent = InsightAgent('user1', 'session1')
     async for event in agent.chat('What was our Q4 revenue?'):
         print(event)
-
-asyncio.run(test())
-"
-
-# Test BigQuery service
-python -c "
-import asyncio
-from app.services.bigquery_service import get_bigquery_service
-
-async def test():
-    svc = get_bigquery_service()
-    result = await svc.execute_query('SELECT SUM(revenue) FROM \`insightagent-adk.insightagent_data.transactions\` WHERE date >= \"2024-10-01\"')
-    print(result)
 
 asyncio.run(test())
 "
@@ -204,12 +217,12 @@ InsightAgent/
 │   ├── Dockerfile             # Container definition
 │   └── app/
 │       ├── __init__.py
-│       ├── main.py            # FastAPI entry point
-│       ├── config.py          # Configuration (ADC, settings)
+│       ├── main.py            # ✅ FastAPI entry point
+│       ├── config.py          # ✅ Configuration (ADC, settings)
 │       ├── agent/
 │       │   ├── __init__.py
 │       │   ├── insight_agent.py  # ✅ Implemented
-│       │   └── prompts.py        # System prompts
+│       │   └── prompts.py        # ✅ System prompts
 │       ├── tools/
 │       │   ├── __init__.py       # ✅ Exports all tools
 │       │   ├── bigquery_tool.py  # ✅ Implemented
@@ -224,10 +237,11 @@ InsightAgent/
 │       │   └── tool_middleware.py   # ✅ Implemented
 │       ├── models/
 │       │   ├── __init__.py
-│       │   └── schemas.py        # Pydantic models
+│       │   └── schemas.py        # ✅ Pydantic models
 │       └── api/
 │           ├── __init__.py
-│           └── routes.py         # API endpoints (Phase 3)
+│           ├── auth.py           # ✅ API key authentication
+│           └── routes.py         # ✅ API endpoints
 ├── knowledge_base/
 │   ├── metrics_definitions.md
 │   ├── company_targets_2024.md
