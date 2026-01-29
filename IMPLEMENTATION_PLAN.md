@@ -105,8 +105,12 @@ InsightAgent/
    - Firestore API
    - Cloud Run API
    - Firebase Hosting
-3. Create service account with necessary permissions
-4. Set up authentication credentials
+3. Create service account with required IAM roles:
+   - `roles/aiplatform.user` (Vertex AI Gemini + RAG Engine)
+   - `roles/bigquery.dataViewer` (BigQuery queries)
+   - `roles/bigquery.jobUser` (BigQuery job execution)
+   - `roles/datastore.user` (Firestore read/write)
+4. **No API keys needed** - use Application Default Credentials (ADC)
 
 ### 1.3 Development Environment
 
@@ -115,15 +119,29 @@ InsightAgent/
 2. Install Google ADK: `pip install google-adk`
 3. Install dependencies: FastAPI, uvicorn, google-cloud-bigquery, google-cloud-aiplatform, vertexai, firebase-admin
 4. Set up environment variables configuration
-5. Configure authentication handling for local vs Cloud Run:
+5. Configure authentication via ADC (Application Default Credentials):
    ```python
    # config.py - handles both local dev and Cloud Run
    import google.auth
+   import vertexai
 
    credentials, project = google.auth.default()
-   # Local: uses gcloud auth application-default login
-   # Cloud Run: uses service account automatically
+   vertexai.init(project=project, location=VERTEX_LOCATION, credentials=credentials)
+
+   # Local: run `gcloud auth application-default login` once
+   # Cloud Run: automatically uses service account
    ```
+
+**Authentication Strategy - No API Keys:**
+Use Vertex AI Gemini API (`aiplatform.googleapis.com`) instead of Google AI Studio API (`generativelanguage.googleapis.com`). This allows IAM-based access via service accounts - no API keys to store or rotate.
+
+```python
+# Gemini access via Vertex AI (no API key needed)
+from vertexai.generative_models import GenerativeModel
+
+model = GenerativeModel("gemini-2.5-flash")
+response = model.generate_content("Hello")
+```
 
 ---
 
@@ -680,7 +698,33 @@ Before presenting, run a simple warm-up script or endpoint that executes:
 - 1 RAG retrieval (warms embedding model)
 This ensures first demo question has optimal latency.
 4. Configure environment variables
-5. Set up service account permissions
+5. Assign service account to Cloud Run with IAM roles:
+   ```bash
+   # Create service account
+   gcloud iam service-accounts create insightagent-sa \
+     --display-name="InsightAgent Service Account"
+
+   # Grant required roles
+   gcloud projects add-iam-policy-binding $PROJECT_ID \
+     --member="serviceAccount:insightagent-sa@$PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/aiplatform.user"
+
+   gcloud projects add-iam-policy-binding $PROJECT_ID \
+     --member="serviceAccount:insightagent-sa@$PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/bigquery.dataViewer"
+
+   gcloud projects add-iam-policy-binding $PROJECT_ID \
+     --member="serviceAccount:insightagent-sa@$PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/bigquery.jobUser"
+
+   gcloud projects add-iam-policy-binding $PROJECT_ID \
+     --member="serviceAccount:insightagent-sa@$PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/datastore.user"
+
+   # Deploy with service account
+   gcloud run deploy insightagent \
+     --service-account=insightagent-sa@$PROJECT_ID.iam.gserviceaccount.com
+   ```
 
 ### 7.2 Frontend Deployment (Firebase Hosting)
 
@@ -694,27 +738,28 @@ This ensures first demo question has optimal latency.
 
 **Required Environment Variables:**
 ```
-# GCP
+# GCP Project
 GCP_PROJECT_ID=
-VERTEX_LOCATION=us-central1  # Configurable, not hardcoded
+VERTEX_LOCATION=us-central1
 
 # BigQuery
 BQ_DATASET_ID=
-# Note: No BQ_CREDENTIALS needed on Cloud Run - uses ADC via service account
-# For local dev without gcloud auth: optionally set GOOGLE_APPLICATION_CREDENTIALS
 
 # Firestore
 FIRESTORE_COLLECTION_PREFIX=
 
-# Vertex AI / ADK
+# Vertex AI
 GEMINI_MODEL=gemini-2.5-flash
-
-# RAG Engine
 RAG_CORPUS_NAME=
 
 # API
 API_BASE_URL=
 ```
+
+**Note: No API keys or credentials in env vars.**
+- Cloud Run: Uses attached service account via ADC automatically
+- Local dev: Run `gcloud auth application-default login` once
+- All GCP services (Gemini, BigQuery, Firestore, RAG Engine) accessed via IAM roles
 
 ---
 
@@ -808,6 +853,8 @@ Phase 7: Deployment
 4. **Tool Definitions**: Provide detailed descriptions and few-shot examples to guide agent tool selection
 
 5. **Error Handling**: User-friendly messages only; no stack traces; graceful degradation when tools fail
+
+6. **Authentication**: Use Vertex AI Gemini API with ADC (Application Default Credentials) instead of Google AI Studio API. No API keys to manage - all access via IAM service account roles. Simplifies security, eliminates key rotation concerns.
 
 ---
 
