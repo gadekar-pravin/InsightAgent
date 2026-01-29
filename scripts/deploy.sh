@@ -1,17 +1,22 @@
 #!/bin/bash
 # InsightAgent Deployment Script
-# Deploys backend and/or frontend to Google Cloud Run
+# Backend: Cloud Run | Frontend: Firebase Hosting
 
 set -e
 
 # Configuration
 PROJECT_ID="insightagent-adk"
+FIREBASE_PROJECT_ID="insightagent-adk-8b283"
 REGION="asia-south1"
 ARTIFACT_REGISTRY="asia-south1-docker.pkg.dev/${PROJECT_ID}/insightagent"
 
 # Service names
 BACKEND_SERVICE="insightagent"
-FRONTEND_SERVICE="insightagent-frontend"
+FIREBASE_SITE="insightagent-app"
+
+# URLs
+FRONTEND_URL="https://insightagent-app.web.app"
+BACKEND_URL="https://insightagent-650676557784.asia-south1.run.app"
 
 # Colors for output
 RED='\033[0;31m'
@@ -36,19 +41,19 @@ print_error() {
 }
 
 deploy_backend() {
-    print_status "Deploying backend..."
+    print_status "Deploying backend to Cloud Run..."
 
     cd "${PROJECT_ROOT}/backend"
 
-    # Build and push image (redirect to stderr so it doesn't pollute captured output)
+    # Build and push image
     print_status "Building backend Docker image..."
     gcloud builds submit \
         --tag="${ARTIFACT_REGISTRY}/backend:latest" \
         --project="${PROJECT_ID}" \
         --region="${REGION}" >&2
 
-    # Deploy to Cloud Run (use --update-env-vars to preserve existing env vars)
-    print_status "Deploying backend to Cloud Run..."
+    # Deploy to Cloud Run
+    print_status "Deploying to Cloud Run..."
     gcloud run deploy "${BACKEND_SERVICE}" \
         --image="${ARTIFACT_REGISTRY}/backend:latest" \
         --project="${PROJECT_ID}" \
@@ -73,51 +78,20 @@ deploy_backend() {
 }
 
 deploy_frontend() {
-    local backend_url="$1"
-
-    print_status "Deploying frontend..."
+    print_status "Deploying frontend to Firebase Hosting..."
 
     cd "${PROJECT_ROOT}/frontend"
 
-    # Update nginx.conf with backend URL if provided
-    if [ -n "${backend_url}" ]; then
-        print_status "Updating nginx.conf with backend URL: ${backend_url}"
-        # Extract hostname from URL
-        local backend_host
-        backend_host=$(echo "${backend_url}" | sed 's|https://||')
-        sed -i.bak "s|proxy_pass https://.*asia-south1.run.app;|proxy_pass ${backend_url};|" nginx.conf
-        sed -i.bak "s|proxy_set_header Host .*asia-south1.run.app;|proxy_set_header Host ${backend_host};|" nginx.conf
-        rm -f nginx.conf.bak
-    fi
+    # Build production bundle
+    print_status "Building frontend..."
+    npm run build >&2
 
-    # Build and push image (redirect to stderr so it doesn't pollute captured output)
-    print_status "Building frontend Docker image..."
-    gcloud builds submit \
-        --tag="${ARTIFACT_REGISTRY}/frontend:latest" \
-        --project="${PROJECT_ID}" \
-        --region="${REGION}" >&2
+    # Deploy to Firebase Hosting
+    print_status "Deploying to Firebase Hosting..."
+    firebase deploy --only hosting --project="${FIREBASE_PROJECT_ID}" >&2
 
-    # Deploy to Cloud Run
-    print_status "Deploying frontend to Cloud Run..."
-    gcloud run deploy "${FRONTEND_SERVICE}" \
-        --image="${ARTIFACT_REGISTRY}/frontend:latest" \
-        --project="${PROJECT_ID}" \
-        --region="${REGION}" \
-        --allow-unauthenticated \
-        --port=8080 \
-        --memory=512Mi \
-        --cpu=1 \
-        --min-instances=0 \
-        --max-instances=5 >&2
-
-    local url
-    url=$(gcloud run services describe "${FRONTEND_SERVICE}" \
-        --project="${PROJECT_ID}" \
-        --region="${REGION}" \
-        --format="value(status.url)")
-
-    print_status "Frontend deployed: ${url}"
-    echo "${url}"
+    print_status "Frontend deployed: ${FRONTEND_URL}"
+    echo "${FRONTEND_URL}"
 }
 
 update_cors() {
@@ -133,84 +107,60 @@ update_cors() {
     print_status "CORS updated"
 }
 
-warmup_instances() {
+warmup_backend() {
     local min_instances="${1:-1}"
-    local pids=()
-    local failed=0
 
-    print_status "Setting min instances to ${min_instances} for both services..."
+    print_status "Setting backend min instances to ${min_instances}..."
 
     gcloud run services update "${BACKEND_SERVICE}" \
         --project="${PROJECT_ID}" \
         --region="${REGION}" \
-        --min-instances="${min_instances}" &
-    pids+=($!)
+        --min-instances="${min_instances}" >&2
 
-    gcloud run services update "${FRONTEND_SERVICE}" \
-        --project="${PROJECT_ID}" \
-        --region="${REGION}" \
-        --min-instances="${min_instances}" &
-    pids+=($!)
-
-    # Wait for each job and check exit status
-    for pid in "${pids[@]}"; do
-        if ! wait "${pid}"; then
-            failed=1
-        fi
-    done
-
-    if [ "${failed}" -eq 1 ]; then
-        print_error "One or more instance updates failed"
-        return 1
-    fi
-
-    print_status "Min instances updated"
+    print_status "Backend min instances updated to ${min_instances}"
 }
 
 show_status() {
-    print_status "Current deployment status:"
+    print_status "Deployment status:"
     echo ""
 
-    echo "Backend:"
+    echo "Backend (Cloud Run):"
     gcloud run services describe "${BACKEND_SERVICE}" \
         --project="${PROJECT_ID}" \
         --region="${REGION}" \
         --format="table(status.url,status.conditions[0].status,spec.template.spec.containers[0].resources.limits.memory)" 2>/dev/null || echo "  Not deployed"
 
     echo ""
-    echo "Frontend:"
-    gcloud run services describe "${FRONTEND_SERVICE}" \
-        --project="${PROJECT_ID}" \
-        --region="${REGION}" \
-        --format="table(status.url,status.conditions[0].status,spec.template.spec.containers[0].resources.limits.memory)" 2>/dev/null || echo "  Not deployed"
+    echo "Frontend (Firebase Hosting):"
+    echo "  URL: ${FRONTEND_URL}"
+    echo "  Site: ${FIREBASE_SITE}"
+    echo "  Project: ${FIREBASE_PROJECT_ID}"
 }
 
 usage() {
     cat << EOF
 InsightAgent Deployment Script
 
-Usage: $0 [command] [options]
+Usage: $0 [command]
 
 Commands:
   all         Deploy both backend and frontend (default)
-  backend     Deploy only the backend
-  frontend    Deploy only the frontend
-  cors        Update backend CORS with frontend URL
-  warmup      Set min-instances=1 to reduce cold starts
-  cooldown    Set min-instances=0 to save costs
-  status      Show current deployment status
-
-Options:
-  -h, --help  Show this help message
+  backend     Deploy backend to Cloud Run
+  frontend    Deploy frontend to Firebase Hosting
+  warmup      Set backend min-instances=1 (reduce cold starts)
+  cooldown    Set backend min-instances=0 (save costs)
+  status      Show deployment status
 
 Examples:
-  $0                  # Deploy both services
-  $0 all              # Deploy both services
-  $0 backend          # Deploy only backend
-  $0 frontend         # Deploy only frontend
-  $0 warmup           # Warm up instances before demo
-  $0 cooldown         # Cool down after demo
-  $0 status           # Check deployment status
+  $0              # Deploy both services
+  $0 backend      # Deploy only backend
+  $0 frontend     # Deploy only frontend
+  $0 warmup       # Warm up backend before demo
+  $0 cooldown     # Cool down after demo
+
+Production URLs:
+  Frontend: ${FRONTEND_URL}
+  Backend:  ${BACKEND_URL}
 
 EOF
 }
@@ -226,9 +176,8 @@ main() {
             ;;
         all)
             print_status "Starting full deployment..."
-            BACKEND_URL=$(deploy_backend)
-            FRONTEND_URL=$(deploy_frontend "${BACKEND_URL}")
-            update_cors "${FRONTEND_URL}"
+            deploy_backend >/dev/null
+            deploy_frontend >/dev/null
             print_status "Deployment complete!"
             echo ""
             echo "Frontend: ${FRONTEND_URL}"
@@ -239,38 +188,13 @@ main() {
             deploy_backend
             ;;
         frontend)
-            # Get current backend URL
-            BACKEND_URL=$(gcloud run services describe "${BACKEND_SERVICE}" \
-                --project="${PROJECT_ID}" \
-                --region="${REGION}" \
-                --format="value(status.url)" 2>/dev/null)
-
-            if [ -z "${BACKEND_URL}" ]; then
-                print_error "Backend not deployed. Deploy backend first or use 'all' command."
-                exit 1
-            fi
-
-            FRONTEND_URL=$(deploy_frontend "${BACKEND_URL}")
-            update_cors "${FRONTEND_URL}"
-            ;;
-        cors)
-            FRONTEND_URL=$(gcloud run services describe "${FRONTEND_SERVICE}" \
-                --project="${PROJECT_ID}" \
-                --region="${REGION}" \
-                --format="value(status.url)" 2>/dev/null)
-
-            if [ -z "${FRONTEND_URL}" ]; then
-                print_error "Frontend not deployed."
-                exit 1
-            fi
-
-            update_cors "${FRONTEND_URL}"
+            deploy_frontend
             ;;
         warmup)
-            warmup_instances 1
+            warmup_backend 1
             ;;
         cooldown)
-            warmup_instances 0
+            warmup_backend 0
             ;;
         status)
             show_status
