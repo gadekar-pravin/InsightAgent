@@ -566,7 +566,7 @@ InsightAgent/
 │       ├── customers.csv
 │       └── targets.csv
 ├── scripts/
-│   ├── deploy.sh             # ✅ Cloud Run deployment automation
+│   ├── deploy.sh             # ✅ Deployment script (Cloud Run + Firebase)
 │   ├── seed_bigquery.py
 │   └── setup_rag_corpus.py
 ├── tests/
