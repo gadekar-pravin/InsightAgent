@@ -488,6 +488,131 @@ class FirestoreService:
                 "error": f"Failed to reset memory: {str(e)}",
             }
 
+    async def add_message(
+        self,
+        user_id: str,
+        session_id: str,
+        role: str,
+        content: str,
+        reasoning_trace: list[dict] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Add a message to session history.
+
+        Args:
+            user_id: The user's ID
+            session_id: The session ID
+            role: Message role ('user' or 'assistant')
+            content: Message content
+            reasoning_trace: Optional reasoning trace for assistant messages
+
+        Returns:
+            Dict with message details
+        """
+        self._validate_user_id(user_id)
+
+        try:
+            now = datetime.now(timezone.utc)
+            message_data = {
+                "role": role,
+                "content": content,
+                "timestamp": now.isoformat(),
+            }
+            if reasoning_trace:
+                message_data["reasoning_trace"] = reasoning_trace
+
+            # Add to messages subcollection within the session
+            messages_ref = self.db.collection(
+                f"{self._sessions_collection(user_id)}/{session_id}/messages"
+            )
+            add_result = messages_ref.add(message_data)
+            # google-cloud-firestore has returned both (update_time, doc_ref) and
+            # (doc_ref, update_time) across versions. Extract the DocumentReference
+            # defensively to avoid runtime failures.
+            doc_ref = None
+            if isinstance(add_result, tuple) and len(add_result) == 2:
+                first, second = add_result
+                if hasattr(first, "id"):
+                    doc_ref = first
+                elif hasattr(second, "id"):
+                    doc_ref = second
+            elif hasattr(add_result, "id"):
+                doc_ref = add_result
+
+            # Update session last_updated
+            session_ref = self.db.collection(self._sessions_collection(user_id)).document(session_id)
+            session_ref.update({"last_updated": now.isoformat()})
+
+            logger.debug(f"Added {role} message to session {session_id[:8]}...")
+
+            return {
+                "message_id": getattr(doc_ref, "id", None),
+                "role": role,
+                "timestamp": now.isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"Error adding message: {e}")
+            return {"error": str(e)}
+
+    async def get_session_history(
+        self,
+        user_id: str,
+        session_id: str,
+    ) -> dict[str, Any]:
+        """
+        Get full conversation history for a session.
+
+        Args:
+            user_id: The user's ID
+            session_id: The session ID
+
+        Returns:
+            Dict with session metadata and messages
+        """
+        self._validate_user_id(user_id)
+
+        try:
+            # Get session document
+            session_ref = self.db.collection(
+                self._sessions_collection(user_id)
+            ).document(session_id)
+            session_doc = session_ref.get()
+
+            if not session_doc.exists:
+                return {"error": "Session not found"}
+
+            session_data = session_doc.to_dict()
+
+            # Get all messages ordered by timestamp
+            messages_ref = self.db.collection(
+                f"{self._sessions_collection(user_id)}/{session_id}/messages"
+            )
+            query = messages_ref.order_by("timestamp")
+            message_docs = query.stream()
+
+            messages = []
+            for doc in message_docs:
+                msg_data = doc.to_dict()
+                messages.append({
+                    "role": msg_data.get("role"),
+                    "content": msg_data.get("content"),
+                    "timestamp": msg_data.get("timestamp"),
+                    "reasoning_trace": msg_data.get("reasoning_trace"),
+                })
+
+            return {
+                "session_id": session_id,
+                "user_id": user_id,
+                "messages": messages,
+                "created_at": session_data.get("created_at"),
+                "last_updated": session_data.get("last_updated", session_data.get("created_at")),
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting session history: {e}")
+            return {"error": str(e)}
+
 
 # Singleton instance
 _firestore_service: FirestoreService | None = None

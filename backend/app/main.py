@@ -4,13 +4,57 @@ InsightAgent FastAPI Application Entry Point.
 This is the main entry point for the InsightAgent backend API.
 """
 
+import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import get_settings, init_vertex_ai
 from app.api.routes import router as api_router
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("insightagent")
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Middleware to log requests and responses with timing."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())[:8]
+        start_time = time.time()
+
+        # Log request
+        logger.info(
+            f"[{request_id}] {request.method} {request.url.path} "
+            f"(client: {request.client.host if request.client else 'unknown'})"
+        )
+
+        # Process request
+        response = await call_next(request)
+
+        # Calculate duration
+        duration_ms = (time.time() - start_time) * 1000
+
+        # Log response (don't log SSE streaming responses as they're long-lived)
+        content_type = response.headers.get("content-type", "")
+        if not content_type.startswith("text/event-stream"):
+            logger.info(
+                f"[{request_id}] {response.status_code} ({duration_ms:.1f}ms)"
+            )
+        else:
+            logger.info(
+                f"[{request_id}] SSE stream started ({duration_ms:.1f}ms to first byte)"
+            )
+
+        return response
 
 
 @asynccontextmanager
@@ -22,14 +66,15 @@ async def lifespan(app: FastAPI):
     # Initialize Vertex AI
     try:
         project_id, location = init_vertex_ai()
-        print(f"Initialized Vertex AI: project={project_id}, location={location}")
+        logger.info(f"Initialized Vertex AI: project={project_id}, location={location}")
     except Exception as e:
-        print(f"Warning: Could not initialize Vertex AI: {e}")
+        logger.warning(f"Could not initialize Vertex AI: {e}")
 
+    logger.info("InsightAgent API started")
     yield
 
     # Shutdown
-    print("Shutting down InsightAgent...")
+    logger.info("Shutting down InsightAgent...")
 
 
 # Create FastAPI application
@@ -60,6 +105,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
+
+# Add request logging middleware
+app.add_middleware(RequestLoggingMiddleware)
 
 # Include API routes
 app.include_router(api_router, prefix="/api")

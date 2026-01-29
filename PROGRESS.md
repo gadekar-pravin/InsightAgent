@@ -1,6 +1,6 @@
 # InsightAgent Implementation Progress
 
-**Last Updated:** 2026-01-29
+**Last Updated:** 2026-01-29 (Phase 3 Complete)
 
 ---
 
@@ -111,36 +111,73 @@
 
 ---
 
-## Next Phase: Phase 3 - API Layer Implementation
+### Phase 3: API Layer Implementation ✅
 
-**Status:** Scaffolding complete, needs testing and refinement
+| Task | Status | Notes |
+|------|--------|-------|
+| 3.1 FastAPI Application | ✅ | CORS, API key auth, lifespan handler |
+| 3.2 SSE Streaming | ✅ | Heartbeat events every 15s |
+| 3.3 Conversation History | ✅ | Full message storage and retrieval |
+| 3.4 Request Logging | ✅ | Middleware with timing |
+| 3.5 End-to-End Testing | ✅ | All endpoints verified |
 
-### 3.1 FastAPI Application ✅
-**File:** `backend/app/main.py`
-
-- [x] Initialize FastAPI with CORS
-- [x] API key authentication (moved to `auth.py`)
-- [x] Lifespan handler for Vertex AI init
-- [ ] Add heartbeat/keepalive for SSE
-- [ ] Add request logging middleware
-
-### 3.2 API Endpoints ✅
-**File:** `backend/app/api/routes.py`
-
+**API Endpoints:**
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/chat/session` | POST | ✅ | Create new chat session |
-| `/chat/message` | POST | ✅ | Send message, receive SSE stream |
-| `/chat/history/{session_id}` | GET | ⬜ | Retrieve conversation history |
-| `/user/memory` | GET | ✅ | Retrieve user's persistent memory |
-| `/user/memory/reset` | DELETE | ✅ | Reset user memory (demo feature) |
+| `/health` | GET | ✅ | Health check for Cloud Run |
+| `/api/chat/session` | POST | ✅ | Create new chat session |
+| `/api/chat/message` | POST | ✅ | Send message, receive SSE stream |
+| `/api/chat/history/{session_id}` | GET | ✅ | Retrieve conversation history |
+| `/api/user/memory` | GET | ✅ | Retrieve user's persistent memory |
+| `/api/user/memory/reset` | DELETE | ✅ | Reset user memory (demo feature) |
 
-### 3.3 Remaining Work for Phase 3
-- [ ] Test SSE streaming end-to-end with curl/httpie
-- [ ] Implement conversation history endpoint
-- [ ] Add heartbeat events (every 15s) for SSE
-- [ ] Add request/response logging
-- [ ] Test error handling scenarios
+**SSE Event Types:**
+- `reasoning` - Tool call trace (started, completed)
+- `content` - Response text delta
+- `memory` - Memory save notification
+- `heartbeat` - Keep-alive every 15s
+- `done` - Completion with suggested followups
+- `error` - Error notification
+
+**Test Results:**
+```
+✅ Health: Returns {"status": "healthy"}
+✅ Session: Creates session with UUID, loads user memory
+✅ Message: SSE streaming with reasoning traces and content
+✅ History: Retrieves messages with timestamps and reasoning traces
+✅ Memory: Shows findings, preferences, recent sessions
+✅ Reset: Clears user memory and sessions
+✅ 404: Returns proper error for non-existent sessions
+```
+
+**Code Review Fixes (2026-01-29):**
+| Issue | Severity | Fix |
+|-------|----------|-----|
+| SSE Content-Type detection | P2 | Use `.startswith()` instead of equality check |
+| Heartbeats during long waits | P2 | Implemented background heartbeat task with asyncio queue |
+| Firestore add() tuple indexing | P1 | Verified correct - reviewer had wrong tuple order |
+
+---
+
+## Next Phase: Phase 5 - Frontend Implementation
+
+**Status:** Not started
+
+### 5.1 Project Setup
+- [ ] Initialize React 18 project with Vite
+- [ ] Configure TypeScript and TailwindCSS
+- [ ] Set up project structure
+
+### 5.2 Core Components
+- [ ] Chat interface with message bubbles
+- [ ] Reasoning trace collapsible panel
+- [ ] Memory indicator in session bar
+- [ ] Suggested follow-ups chips
+
+### 5.3 SSE Integration
+- [ ] EventSource client for SSE
+- [ ] Stream parsing for different event types
+- [ ] Reconnection handling
 
 ---
 
@@ -148,8 +185,7 @@
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 3 | API Layer (FastAPI, SSE streaming) | 🔄 In Progress |
-| Phase 5 | Frontend (React, reasoning trace UI) | ⬜ |
+| Phase 5 | Frontend (React, reasoning trace UI) | ⬜ Next |
 | Phase 6 | Integration & Testing | ⬜ |
 | Phase 7 | Deployment (Cloud Run, Firebase) | ⬜ |
 
