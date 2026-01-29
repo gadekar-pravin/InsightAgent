@@ -31,6 +31,7 @@ dist/
 !package.json
 !package-lock.json
 !tsconfig.json
+!firebase.json
 credentials/
 secrets/
 application_default_credentials.json
@@ -41,6 +42,7 @@ service-account*.json
 .env.*.local
 backend/.env
 frontend/.env
+frontend/.env.production
 
 # Logs
 *.log

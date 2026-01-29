@@ -1,6 +1,6 @@
 # InsightAgent Implementation Progress
 
-**Last Updated:** 2026-01-29 (Phase 6 Integration & Testing Complete)
+**Last Updated:** 2026-01-29 (Phase 7 Deployment In Progress)
 
 ---
 
@@ -337,11 +337,59 @@ relevance_score = float(score) if score else 0.5
 
 ---
 
-## Remaining Phases
+### Phase 7: Deployment 🔄
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| Phase 7 | Deployment (Cloud Run, Firebase) | ⬜ Next |
+**Status:** In Progress (Backend Complete, Frontend Pending Manual Step)
+
+### 7.1 Backend Deployment (Cloud Run) ✅
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Docker image build | ✅ | Via Cloud Build |
+| Artifact Registry | ✅ | `asia-south1-docker.pkg.dev/insightagent-adk/insightagent/backend` |
+| Cloud Run deployment | ✅ | Service live and healthy |
+| Environment variables | ✅ | All configured |
+| Service account | ✅ | `insightagent-sa@insightagent-adk.iam.gserviceaccount.com` |
+
+**Cloud Run Service:**
+- **URL:** `https://insightagent-650676557784.asia-south1.run.app`
+- **Region:** asia-south1
+- **Memory:** 2GB, CPU: 2
+- **Min/Max Instances:** 0/5
+
+### 7.2 Frontend Deployment (Firebase Hosting) 🔄
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Firebase configuration | ✅ | `firebase.json`, `.firebaserc` created |
+| Production build | ✅ | `npm run build` successful |
+| API proxy rewrites | ✅ | Configured to Cloud Run service |
+| Firebase login | ⬜ | Requires interactive terminal |
+| Deploy to hosting | ⬜ | Blocked by login |
+
+**Manual Steps Required:**
+```bash
+cd frontend
+
+# 1. Login to Firebase (opens browser)
+firebase login
+
+# 2. Deploy to Firebase Hosting
+firebase deploy --only hosting
+```
+
+**Firebase Hosting Configuration:**
+- API calls (`/api/**`) rewritten to Cloud Run service
+- SPA routing (all paths → `index.html`)
+- Static asset caching (1 year for JS/CSS/images)
+
+### 7.3 Post-Deployment Tasks ⬜
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Update CORS origins | ⬜ | Add Firebase hosting URL |
+| Verify end-to-end | ⬜ | Test chat flow on production |
+| Warm-up instances | ⬜ | Set min-instances=1 before demo |
 
 ---
 
@@ -442,7 +490,10 @@ InsightAgent/
 │           ├── auth.py           # ✅ API key authentication
 │           └── routes.py         # ✅ API endpoints
 ├── frontend/                     # ✅ React Frontend
-│   ├── .env                      # API key config
+│   ├── .env                      # API key config (dev)
+│   ├── .env.production           # Production config
+│   ├── firebase.json             # Firebase Hosting config
+│   ├── .firebaserc               # Firebase project link
 │   ├── package.json              # Dependencies
 │   ├── vite.config.ts            # Dev server + API proxy
 │   ├── tailwind.config.js        # Custom theme
