@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
 .env
 *.egg-info/
@@ -28,9 +29,17 @@ dist/
 # Credentials (never commit)
 *.json
 !package.json
+!package-lock.json
 !tsconfig.json
 credentials/
 secrets/
+application_default_credentials.json
+service-account*.json
+
+# Environment files
+.env.local
+.env.*.local
+backend/.env
 
 # Logs
 *.log

@@ -116,9 +116,24 @@ InsightAgent/
 ### 1.3 Development Environment
 
 **Tasks:**
-1. Create Python virtual environment (Python 3.11+)
-2. Install Google ADK: `pip install google-adk`
-3. Install dependencies: FastAPI, uvicorn, google-cloud-bigquery, google-cloud-aiplatform, vertexai, firebase-admin
+1. Install uv (fast Python package manager):
+   ```bash
+   # macOS/Linux
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+
+   # Or with Homebrew
+   brew install uv
+   ```
+2. Create Python virtual environment (Python 3.11+):
+   ```bash
+   cd backend
+   uv venv --python 3.11
+   source .venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
+   uv pip install -r requirements.txt
+   ```
 4. Set up environment variables configuration
 5. Configure authentication via ADC (Application Default Credentials):
    ```python
@@ -138,10 +153,10 @@ Use Vertex AI Gemini API (`aiplatform.googleapis.com`) instead of Google AI Stud
 
 ```python
 # Gemini access via Vertex AI (no API key needed)
-from vertexai.generative_models import GenerativeModel
+from google import genai
 
-model = GenerativeModel("gemini-2.5-flash")
-response = model.generate_content("Hello")
+client = genai.Client(vertexai=True, project=PROJECT_ID, location=VERTEX_LOCATION)
+response = client.models.generate_content(model="gemini-2.5-flash", contents="Hello")
 ```
 
 ---
@@ -879,7 +894,7 @@ This ensures first demo question has optimal latency.
 ```
 # GCP Project
 GCP_PROJECT_ID=
-VERTEX_LOCATION=us-central1
+VERTEX_LOCATION=asia-south1
 
 # BigQuery
 BQ_DATASET_ID=
