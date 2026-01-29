@@ -81,33 +81,8 @@ def get_bigquery_tool_definition() -> dict:
     }
 
 
-# For backward compatibility - lazy property that resolves at first access
-class _LazyToolDefinition:
-    """Lazy wrapper to defer tool definition resolution."""
-    _cached = None
-
-    def __getitem__(self, key):
-        if self._cached is None:
-            self._cached = get_bigquery_tool_definition()
-        return self._cached[key]
-
-    def get(self, key, default=None):
-        if self._cached is None:
-            self._cached = get_bigquery_tool_definition()
-        return self._cached.get(key, default)
-
-    def __iter__(self):
-        if self._cached is None:
-            self._cached = get_bigquery_tool_definition()
-        return iter(self._cached)
-
-    def keys(self):
-        if self._cached is None:
-            self._cached = get_bigquery_tool_definition()
-        return self._cached.keys()
-
-
-BIGQUERY_TOOL_DEFINITION = _LazyToolDefinition()
+# Note: BIGQUERY_TOOL_DEFINITION removed to avoid incomplete dict-like wrapper.
+# Use get_bigquery_tool_definition() instead for runtime resolution.
 
 
 async def query_bigquery(

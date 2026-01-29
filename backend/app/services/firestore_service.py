@@ -207,15 +207,30 @@ class FirestoreService:
             else:
                 return {"success": False, "error": f"Invalid memory_type: {memory_type}"}
 
-            # First ensure document exists with merge
-            doc_ref.set({"last_updated": now}, merge=True)
+            # Use transaction for atomic update of nested field
+            # This ensures either both last_updated and value are set, or neither
+            @firestore.transactional
+            def update_in_transaction(transaction, doc_ref, field_path, value, now):
+                doc = doc_ref.get(transaction=transaction)
+                if doc.exists:
+                    # Document exists - update only the specific nested field
+                    transaction.update(doc_ref, {
+                        field_path: value,
+                        "last_updated": now,
+                    })
+                else:
+                    # Document doesn't exist - create with nested structure
+                    if '.' in field_path:
+                        # e.g., "findings.q4_revenue" -> {"findings": {"q4_revenue": value}}
+                        parts = field_path.split('.')
+                        data = {parts[0]: {parts[1]: value}, "last_updated": now}
+                    else:
+                        data = {field_path: value, "last_updated": now}
+                    transaction.set(doc_ref, data)
 
-            # Then update specific nested field using dot-notation
-            # This preserves other keys in findings/preferences maps
-            doc_ref.update({
-                field_path: value,
-                "last_updated": now,
-            })
+            # Run transaction (Firestore client is sync, but we're in async context)
+            transaction = self.db.transaction()
+            update_in_transaction(transaction, doc_ref, field_path, value, now)
 
             logger.info(f"Saved memory for user {user_id[:4]}***: {memory_type}/{safe_key}")
 

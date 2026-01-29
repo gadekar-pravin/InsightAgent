@@ -17,7 +17,7 @@ from google.genai import types
 from app.config import get_settings
 from app.agent.prompts import build_system_prompt
 from app.tools import (
-    TOOL_DEFINITIONS,
+    get_tool_definitions,
     query_bigquery,
     search_knowledge_base,
     get_conversation_context,
@@ -83,7 +83,7 @@ class InsightAgent:
         """Build tool declarations for Gemini."""
         function_declarations = []
 
-        for tool_def in TOOL_DEFINITIONS:
+        for tool_def in get_tool_definitions():
             func_decl = types.FunctionDeclaration(
                 name=tool_def["name"],
                 description=tool_def["description"],

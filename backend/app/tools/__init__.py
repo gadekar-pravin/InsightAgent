@@ -32,37 +32,14 @@ def get_tool_definitions() -> list[dict]:
     ]
 
 
-# Backward compatibility - lazy list that resolves on access
-class _LazyToolDefinitions:
-    """Lazy wrapper for tool definitions list."""
-    _cached = None
-
-    def __iter__(self):
-        if self._cached is None:
-            self._cached = get_tool_definitions()
-        return iter(self._cached)
-
-    def __getitem__(self, index):
-        if self._cached is None:
-            self._cached = get_tool_definitions()
-        return self._cached[index]
-
-    def __len__(self):
-        if self._cached is None:
-            self._cached = get_tool_definitions()
-        return len(self._cached)
-
-
-TOOL_DEFINITIONS = _LazyToolDefinitions()
-
 __all__ = [
-    # Tool definition getters
+    # Tool definition getters (use these instead of static dicts)
     "get_bigquery_tool_definition",
     "get_tool_definitions",
+    # Static tool definitions (don't require ADC at import)
     "KNOWLEDGE_TOOL_DEFINITION",
     "CONTEXT_TOOL_DEFINITION",
     "MEMORY_TOOL_DEFINITION",
-    "TOOL_DEFINITIONS",
     # Tool functions
     "query_bigquery",
     "search_knowledge_base",
