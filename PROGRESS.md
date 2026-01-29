@@ -357,20 +357,36 @@ relevance_score = float(score) if score else 0.5
 - **Memory:** 2GB, CPU: 2
 - **Min/Max Instances:** 0/5
 
-### 7.2 Frontend Deployment (Cloud Run) ✅
+### 7.2 Frontend Deployment ✅
+
+**Primary: Firebase Hosting (Recommended)**
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Firebase project setup | ✅ | Project: `insightagent-adk-8b283` |
+| Hosting site created | ✅ | Site: `insightagent-app` |
+| Production build | ✅ | Vite build to `dist/` |
+| Firebase deploy | ✅ | Global CDN, no cold starts |
+
+**Firebase Hosting Service:**
+- **URL:** `https://insightagent-app.web.app`
+- **CDN:** Global edge locations
+- **Cold starts:** None (static files)
+
+**Alternative: Cloud Run Frontend**
 
 | Task | Status | Notes |
 |------|--------|-------|
 | Dockerfile | ✅ | Multi-stage build (node → nginx) |
 | nginx.conf | ✅ | API proxy to backend, SPA routing |
-| Docker image build | ✅ | Via Cloud Build |
 | Cloud Run deployment | ✅ | Service live and healthy |
 
 **Cloud Run Frontend Service:**
 - **URL:** `https://insightagent-frontend-650676557784.asia-south1.run.app`
 - **Region:** asia-south1
 - **Memory:** 512Mi, CPU: 1
-- **Min/Max Instances:** 0/5
+
+**Note:** Firebase Hosting is recommended for production (CDN, no cold starts, lower cost). Cloud Run frontend available as fallback.
 
 ### 7.3 Post-Deployment Verification ✅
 
@@ -392,23 +408,47 @@ relevance_score = float(score) if score else 0.5
 
 ### 7.4 Production URLs
 
-| Service | URL |
-|---------|-----|
-| **Frontend** | https://insightagent-frontend-650676557784.asia-south1.run.app |
-| **Backend API** | https://insightagent-650676557784.asia-south1.run.app |
-| **API Docs** | https://insightagent-650676557784.asia-south1.run.app/docs |
+| Service | URL | Notes |
+|---------|-----|-------|
+| **Frontend (Firebase)** | https://insightagent-app.web.app | Recommended - CDN |
+| **Frontend (Cloud Run)** | https://insightagent-frontend-650676557784.asia-south1.run.app | Alternative |
+| **Backend API** | https://insightagent-650676557784.asia-south1.run.app | |
+| **API Docs** | https://insightagent-650676557784.asia-south1.run.app/docs | |
 
-### 7.5 Optional: Warm-up Instances for Demo
+### 7.5 Deployment Automation Script ✅
+
+**File:** `scripts/deploy.sh`
+
+Automated deployment script for Cloud Run services.
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/deploy.sh all` | Deploy both backend and frontend |
+| `./scripts/deploy.sh backend` | Deploy only backend |
+| `./scripts/deploy.sh frontend` | Deploy only frontend |
+| `./scripts/deploy.sh warmup` | Set min-instances=1 (reduce cold starts) |
+| `./scripts/deploy.sh cooldown` | Set min-instances=0 (save costs) |
+| `./scripts/deploy.sh status` | Show deployment status |
+
+**Code Review Fixes Applied (2026-01-29):**
+
+| Issue | Severity | Fix |
+|-------|----------|-----|
+| Noisy stdout captured into URL vars | P1 | Redirect `print_*` and `gcloud` output to stderr (`>&2`) |
+| `--set-env-vars` wipes existing vars | P2 | Changed to `--update-env-vars` to preserve existing config |
+| `warmup_instances` ignores failures | P3 | Track PIDs individually, check each exit status, return 1 on failure |
+
+### 7.6 Optional: Warm-up Instances for Demo
 
 To reduce cold start latency before a demo:
 ```bash
-# Set min instances to 1 for both services
+# Using the deployment script (recommended)
+./scripts/deploy.sh warmup   # Before demo
+./scripts/deploy.sh cooldown # After demo
+
+# Or manually:
 gcloud run services update insightagent --project=insightagent-adk --region=asia-south1 --min-instances=1
 gcloud run services update insightagent-frontend --project=insightagent-adk --region=asia-south1 --min-instances=1
-
-# After demo, set back to 0 to save costs
-gcloud run services update insightagent --project=insightagent-adk --region=asia-south1 --min-instances=0
-gcloud run services update insightagent-frontend --project=insightagent-adk --region=asia-south1 --min-instances=0
 ```
 
 ---
@@ -512,6 +552,8 @@ InsightAgent/
 ├── frontend/                     # ✅ React Frontend
 │   ├── .env                      # API key config (dev)
 │   ├── .env.production           # Production config
+│   ├── Dockerfile                # ✅ Multi-stage build (node → nginx)
+│   ├── nginx.conf                # ✅ API proxy + SPA routing
 │   ├── firebase.json             # Firebase Hosting config
 │   ├── .firebaserc               # Firebase project link
 │   ├── package.json              # Dependencies
@@ -555,6 +597,7 @@ InsightAgent/
 │       ├── customers.csv
 │       └── targets.csv
 ├── scripts/
+│   ├── deploy.sh             # ✅ Cloud Run deployment automation
 │   ├── seed_bigquery.py
 │   └── setup_rag_corpus.py
 ├── tests/

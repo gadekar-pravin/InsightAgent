@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "insightagent-app",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -7,14 +8,6 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      {
-        "//": "IMPORTANT: Cloud Run service must have roles/run.invoker granted to allUsers for this rewrite to work. Run scripts/demo-on.sh before deploying, or manually grant: gcloud run services add-iam-policy-binding insightagent --member=allUsers --role=roles/run.invoker --region=asia-south1",
-        "source": "/api/**",
-        "run": {
-          "serviceId": "insightagent",
-          "region": "asia-south1"
-        }
-      },
       {
         "source": "**",
         "destination": "/index.html"

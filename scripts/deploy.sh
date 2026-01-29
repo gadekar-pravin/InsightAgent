@@ -24,15 +24,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    echo -e "${GREEN}[INFO]${NC} $1" >&2
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo -e "${YELLOW}[WARN]${NC} $1" >&2
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
 deploy_backend() {
@@ -40,14 +40,14 @@ deploy_backend() {
 
     cd "${PROJECT_ROOT}/backend"
 
-    # Build and push image
+    # Build and push image (redirect to stderr so it doesn't pollute captured output)
     print_status "Building backend Docker image..."
     gcloud builds submit \
         --tag="${ARTIFACT_REGISTRY}/backend:latest" \
         --project="${PROJECT_ID}" \
-        --region="${REGION}"
+        --region="${REGION}" >&2
 
-    # Deploy to Cloud Run
+    # Deploy to Cloud Run (use --update-env-vars to preserve existing env vars)
     print_status "Deploying backend to Cloud Run..."
     gcloud run deploy "${BACKEND_SERVICE}" \
         --image="${ARTIFACT_REGISTRY}/backend:latest" \
@@ -60,15 +60,16 @@ deploy_backend() {
         --min-instances=0 \
         --max-instances=5 \
         --service-account="insightagent-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
-        --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},VERTEX_LOCATION=${REGION},ENVIRONMENT=production"
+        --update-env-vars="GCP_PROJECT_ID=${PROJECT_ID},VERTEX_LOCATION=${REGION},ENVIRONMENT=production" >&2
 
-    BACKEND_URL=$(gcloud run services describe "${BACKEND_SERVICE}" \
+    local url
+    url=$(gcloud run services describe "${BACKEND_SERVICE}" \
         --project="${PROJECT_ID}" \
         --region="${REGION}" \
         --format="value(status.url)")
 
-    print_status "Backend deployed: ${BACKEND_URL}"
-    echo "${BACKEND_URL}"
+    print_status "Backend deployed: ${url}"
+    echo "${url}"
 }
 
 deploy_frontend() {
@@ -82,18 +83,19 @@ deploy_frontend() {
     if [ -n "${backend_url}" ]; then
         print_status "Updating nginx.conf with backend URL: ${backend_url}"
         # Extract hostname from URL
-        BACKEND_HOST=$(echo "${backend_url}" | sed 's|https://||')
+        local backend_host
+        backend_host=$(echo "${backend_url}" | sed 's|https://||')
         sed -i.bak "s|proxy_pass https://.*asia-south1.run.app;|proxy_pass ${backend_url};|" nginx.conf
-        sed -i.bak "s|proxy_set_header Host .*asia-south1.run.app;|proxy_set_header Host ${BACKEND_HOST};|" nginx.conf
+        sed -i.bak "s|proxy_set_header Host .*asia-south1.run.app;|proxy_set_header Host ${backend_host};|" nginx.conf
         rm -f nginx.conf.bak
     fi
 
-    # Build and push image
+    # Build and push image (redirect to stderr so it doesn't pollute captured output)
     print_status "Building frontend Docker image..."
     gcloud builds submit \
         --tag="${ARTIFACT_REGISTRY}/frontend:latest" \
         --project="${PROJECT_ID}" \
-        --region="${REGION}"
+        --region="${REGION}" >&2
 
     # Deploy to Cloud Run
     print_status "Deploying frontend to Cloud Run..."
@@ -106,15 +108,16 @@ deploy_frontend() {
         --memory=512Mi \
         --cpu=1 \
         --min-instances=0 \
-        --max-instances=5
+        --max-instances=5 >&2
 
-    FRONTEND_URL=$(gcloud run services describe "${FRONTEND_SERVICE}" \
+    local url
+    url=$(gcloud run services describe "${FRONTEND_SERVICE}" \
         --project="${PROJECT_ID}" \
         --region="${REGION}" \
         --format="value(status.url)")
 
-    print_status "Frontend deployed: ${FRONTEND_URL}"
-    echo "${FRONTEND_URL}"
+    print_status "Frontend deployed: ${url}"
+    echo "${url}"
 }
 
 update_cors() {
@@ -125,13 +128,15 @@ update_cors() {
     gcloud run services update "${BACKEND_SERVICE}" \
         --project="${PROJECT_ID}" \
         --region="${REGION}" \
-        --update-env-vars="ALLOWED_CORS_ORIGIN=${frontend_url}"
+        --update-env-vars="ALLOWED_CORS_ORIGIN=${frontend_url}" >&2
 
     print_status "CORS updated"
 }
 
 warmup_instances() {
     local min_instances="${1:-1}"
+    local pids=()
+    local failed=0
 
     print_status "Setting min instances to ${min_instances} for both services..."
 
@@ -139,13 +144,26 @@ warmup_instances() {
         --project="${PROJECT_ID}" \
         --region="${REGION}" \
         --min-instances="${min_instances}" &
+    pids+=($!)
 
     gcloud run services update "${FRONTEND_SERVICE}" \
         --project="${PROJECT_ID}" \
         --region="${REGION}" \
         --min-instances="${min_instances}" &
+    pids+=($!)
 
-    wait
+    # Wait for each job and check exit status
+    for pid in "${pids[@]}"; do
+        if ! wait "${pid}"; then
+            failed=1
+        fi
+    done
+
+    if [ "${failed}" -eq 1 ]; then
+        print_error "One or more instance updates failed"
+        return 1
+    fi
+
     print_status "Min instances updated"
 }
 

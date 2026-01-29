@@ -56,3 +56,6 @@ htmlcov/
 # Build artifacts
 *.egg
 *.whl
+
+# Firebase
+.firebase/
