@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Material Symbols Configuration */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Base styles */
+body {
+  font-family: 'Manrope', sans-serif;
+}
+
+/* Reasoning trace connector line */
+.reasoning-line {
+  width: 2px;
+  background: #e7edf3;
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  left: 11px;
+}
+
+.dark .reasoning-line {
+  background: #1e293b;
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth scroll for chat */
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+/* Custom focus styles */
+input:focus,
+textarea:focus,
+button:focus {
+  outline: none;
+}
+
+/* Markdown table styling */
+.prose table {
+  @apply w-full text-left border-collapse overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700;
+}
+
+.prose thead {
+  @apply bg-slate-50 dark:bg-slate-800/50;
+}
+
+.prose th {
+  @apply px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500;
+}
+
+.prose td {
+  @apply px-4 py-4 text-sm;
+}
+
+.prose tbody tr {
+  @apply border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors;
+}
+
+/* Streaming cursor animation */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.streaming-cursor::after {
+  content: '|';
+  animation: blink 1s infinite;
+  color: #137fec;
+}
