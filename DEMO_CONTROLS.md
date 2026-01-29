@@ -141,14 +141,21 @@ SERVICE="${SERVICE:-insightagent}"
 
 echo "🔒 Disabling InsightAgent demo..."
 
-# Remove public access
+# Remove public access (check if binding exists first)
 echo "Removing public access..."
-gcloud run services remove-iam-policy-binding "$SERVICE" \
-  --project "$PROJECT" \
-  --region "$REGION" \
-  --member="allUsers" \
-  --role="roles/run.invoker" \
-  2>/dev/null || echo "  (already removed)"
+if gcloud run services get-iam-policy "$SERVICE" \
+    --project "$PROJECT" \
+    --region "$REGION" \
+    --format="value(bindings.members)" 2>/dev/null | grep -q "allUsers"; then
+  gcloud run services remove-iam-policy-binding "$SERVICE" \
+    --project "$PROJECT" \
+    --region "$REGION" \
+    --member="allUsers" \
+    --role="roles/run.invoker"
+  echo "  Public access removed."
+else
+  echo "  Public access was not enabled (nothing to remove)."
+fi
 
 # Rotate API key
 echo "Rotating API key to unknown value..."
@@ -184,21 +191,22 @@ NEW_KEY=$(openssl rand -base64 32 | tr -d '/+=' | head -c 43)
 
 echo "🚀 Enabling InsightAgent demo..."
 
-# Restore public access
-echo "Restoring public access..."
-gcloud run services add-iam-policy-binding "$SERVICE" \
-  --project "$PROJECT" \
-  --region "$REGION" \
-  --member="allUsers" \
-  --role="roles/run.invoker"
-
-# Set new API key
+# Set new API key FIRST (before restoring public access)
+# This ensures no window where service is public with old key
 echo "Setting new API key..."
 gcloud run services update "$SERVICE" \
   --project "$PROJECT" \
   --region "$REGION" \
   --update-env-vars="DEMO_API_KEY=$NEW_KEY" \
   --quiet
+
+# Restore public access AFTER key is rotated
+echo "Restoring public access..."
+gcloud run services add-iam-policy-binding "$SERVICE" \
+  --project "$PROJECT" \
+  --region "$REGION" \
+  --member="allUsers" \
+  --role="roles/run.invoker"
 
 # Warm up
 echo "Warming up (min-instances=1)..."

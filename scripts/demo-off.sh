@@ -9,13 +9,21 @@ SERVICE="${SERVICE:-insightagent}"
 echo "🔒 Disabling InsightAgent demo..."
 
 # Remove public access
+# Check if binding exists first to distinguish "not found" from real errors
 echo "Removing public access..."
-gcloud run services remove-iam-policy-binding "$SERVICE" \
-  --project "$PROJECT" \
-  --region "$REGION" \
-  --member="allUsers" \
-  --role="roles/run.invoker" \
-  2>/dev/null || echo "  (already removed)"
+if gcloud run services get-iam-policy "$SERVICE" \
+    --project "$PROJECT" \
+    --region "$REGION" \
+    --format="value(bindings.members)" 2>/dev/null | grep -q "allUsers"; then
+  gcloud run services remove-iam-policy-binding "$SERVICE" \
+    --project "$PROJECT" \
+    --region "$REGION" \
+    --member="allUsers" \
+    --role="roles/run.invoker"
+  echo "  Public access removed."
+else
+  echo "  Public access was not enabled (nothing to remove)."
+fi
 
 # Rotate API key
 echo "Rotating API key to unknown value..."
