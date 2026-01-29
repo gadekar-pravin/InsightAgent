@@ -5,6 +5,7 @@ This module defines the main agent with Gemini 2.5 Flash model
 and registers all four tools using google.genai.Client.
 """
 
+import asyncio
 import json
 import logging
 import uuid
@@ -68,10 +69,13 @@ class InsightAgent:
     def client(self) -> genai.Client:
         """Lazy initialization of Gemini client."""
         if self._client is None:
+            # Use project from settings if set, otherwise let ADC resolve it
+            project = self.settings.gcp_project_id or None
+            location = self.settings.vertex_location or "us-central1"
             self._client = genai.Client(
                 vertexai=True,
-                project=self.settings.gcp_project_id,
-                location=self.settings.vertex_location,
+                project=project,
+                location=location,
             )
         return self._client
 
@@ -192,8 +196,9 @@ class InsightAgent:
             iteration += 1
 
             try:
-                # Generate response
-                response = self.client.models.generate_content(
+                # Generate response - run sync call in thread to avoid blocking event loop
+                response = await asyncio.to_thread(
+                    self.client.models.generate_content,
                     model=self.settings.gemini_model,
                     contents=self._history,
                     config=config,

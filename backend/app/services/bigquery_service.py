@@ -39,7 +39,9 @@ class BigQueryService:
     def client(self) -> bigquery.Client:
         """Lazy initialization of BigQuery client."""
         if self._client is None:
-            self._client = bigquery.Client(project=self.settings.gcp_project_id)
+            # Use project from settings if set, otherwise let ADC resolve it
+            project = self.settings.gcp_project_id or None
+            self._client = bigquery.Client(project=project)
         return self._client
 
     @property

@@ -207,11 +207,15 @@ class FirestoreService:
             else:
                 return {"success": False, "error": f"Invalid memory_type: {memory_type}"}
 
-            # Update or create document
-            doc_ref.set({
-                field_path.split('.')[0]: {safe_key: value} if '.' in field_path else value,
+            # First ensure document exists with merge
+            doc_ref.set({"last_updated": now}, merge=True)
+
+            # Then update specific nested field using dot-notation
+            # This preserves other keys in findings/preferences maps
+            doc_ref.update({
+                field_path: value,
                 "last_updated": now,
-            }, merge=True)
+            })
 
             logger.info(f"Saved memory for user {user_id[:4]}***: {memory_type}/{safe_key}")
 

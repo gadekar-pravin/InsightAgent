@@ -49,7 +49,8 @@ class RAGEngineService:
         Args:
             query: The semantic search query
             top_k: Number of results to return
-            relevance_threshold: Minimum relevance score (0-1)
+            relevance_threshold: Minimum relevance score (0-1, higher = more relevant).
+                Results with relevance below this threshold are filtered out.
 
         Returns:
             Dict with results containing content, source, and score
@@ -73,6 +74,14 @@ class RAGEngineService:
         # Clamp top_k to valid range
         top_k = max(1, min(top_k, 10))
 
+        # Clamp relevance_threshold to valid range
+        relevance_threshold = max(0.0, min(relevance_threshold, 1.0))
+
+        # Convert relevance threshold to distance threshold
+        # relevance = 1 - distance, so distance = 1 - relevance
+        # Higher relevance threshold means lower distance threshold (stricter filtering)
+        distance_threshold = 1.0 - relevance_threshold
+
         try:
             self._ensure_initialized()
 
@@ -85,7 +94,7 @@ class RAGEngineService:
                 rag_retrieval_config=rag.RagRetrievalConfig(
                     top_k=top_k,
                     filter=rag.Filter(
-                        vector_distance_threshold=relevance_threshold
+                        vector_distance_threshold=distance_threshold
                     )
                 ),
             )

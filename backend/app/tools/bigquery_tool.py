@@ -5,17 +5,15 @@ Executes SQL queries against the company's BigQuery data warehouse
 with security constraints and cost controls.
 """
 
+from functools import lru_cache
 from typing import Any
 
-from app.config import get_settings, get_bigquery_dataset
 from app.services.bigquery_service import get_bigquery_service
 from app.services.tool_middleware import log_tool_call, sanitize_tool_output
 
 
-# Tool definition for ADK/Gemini function calling
-BIGQUERY_TOOL_DEFINITION = {
-    "name": "query_bigquery",
-    "description": """Execute a SQL query against the company's BigQuery data warehouse.
+# Tool description template - dataset placeholder resolved at runtime
+_BIGQUERY_TOOL_DESCRIPTION_TEMPLATE = """Execute a SQL query against the company's BigQuery data warehouse.
 
 Use this tool to retrieve sales, revenue, customer, and performance data.
 
@@ -54,18 +52,62 @@ EXAMPLE QUERIES:
 
 Returns raw data. If the user asks 'why' or needs context to interpret results,
 follow up with `search_knowledge_base` to provide business context.
-""".format(dataset=get_bigquery_dataset()),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "sql": {
-                "type": "string",
-                "description": "The SQL SELECT query to execute"
-            }
-        },
-        "required": ["sql"]
+"""
+
+
+@lru_cache(maxsize=1)
+def get_bigquery_tool_definition() -> dict:
+    """
+    Get the BigQuery tool definition with resolved dataset name.
+
+    Deferred to runtime to avoid import-time ADC lookups.
+    """
+    from app.config import get_bigquery_dataset
+    dataset = get_bigquery_dataset()
+
+    return {
+        "name": "query_bigquery",
+        "description": _BIGQUERY_TOOL_DESCRIPTION_TEMPLATE.format(dataset=dataset),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "sql": {
+                    "type": "string",
+                    "description": "The SQL SELECT query to execute"
+                }
+            },
+            "required": ["sql"]
+        }
     }
-}
+
+
+# For backward compatibility - lazy property that resolves at first access
+class _LazyToolDefinition:
+    """Lazy wrapper to defer tool definition resolution."""
+    _cached = None
+
+    def __getitem__(self, key):
+        if self._cached is None:
+            self._cached = get_bigquery_tool_definition()
+        return self._cached[key]
+
+    def get(self, key, default=None):
+        if self._cached is None:
+            self._cached = get_bigquery_tool_definition()
+        return self._cached.get(key, default)
+
+    def __iter__(self):
+        if self._cached is None:
+            self._cached = get_bigquery_tool_definition()
+        return iter(self._cached)
+
+    def keys(self):
+        if self._cached is None:
+            self._cached = get_bigquery_tool_definition()
+        return self._cached.keys()
+
+
+BIGQUERY_TOOL_DEFINITION = _LazyToolDefinition()
 
 
 async def query_bigquery(
