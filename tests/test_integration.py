@@ -20,8 +20,16 @@ import os
 import sys
 import json
 import time
-import requests
 import pytest
+
+# Only require optional deps when integration tests are explicitly enabled.
+INTEGRATION_ENABLED = os.getenv("RUN_INTEGRATION_TESTS") == "1"
+try:
+    import requests
+except ModuleNotFoundError:
+    if INTEGRATION_ENABLED:
+        raise
+    requests = None  # type: ignore[assignment]
 
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
@@ -33,10 +41,17 @@ TEST_USER = "integration_test_user"
 
 # Request timeouts (connect, read) in seconds
 REQUEST_TIMEOUT = (5, 120)  # 5s connect, 120s read for LLM responses
+# Max overall duration for a single SSE stream (prevents hangs if server never closes).
+MAX_STREAM_SECONDS = int(os.getenv("INTEGRATION_MAX_STREAM_SECONDS", "180"))
 
 # Skip integration tests unless explicitly enabled
-SKIP_INTEGRATION = not os.getenv("RUN_INTEGRATION_TESTS")
+SKIP_INTEGRATION = not INTEGRATION_ENABLED
 SKIP_REASON = "Integration tests require RUN_INTEGRATION_TESTS=1 and DEMO_API_KEY env vars"
+
+
+def require_requests() -> None:
+    if requests is None:
+        pytest.skip("requests is not installed (required for live-HTTP integration tests)")
 
 
 def get_headers() -> dict:
@@ -51,6 +66,7 @@ def get_headers() -> dict:
 
 def create_session(user_id: str = TEST_USER) -> dict:
     """Create a new chat session."""
+    require_requests()
     response = requests.post(
         f"{API_BASE}/api/chat/session",
         headers=get_headers(),
@@ -63,6 +79,7 @@ def create_session(user_id: str = TEST_USER) -> dict:
 
 def send_message_streaming(session_id: str, content: str, user_id: str = TEST_USER) -> dict:
     """Send a message and collect all SSE events."""
+    require_requests()
     result = {
         "reasoning_traces": [],
         "content": "",
@@ -91,6 +108,10 @@ def send_message_streaming(session_id: str, content: str, user_id: str = TEST_US
 
     buffer = ""
     for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+        if time.time() - start_time > MAX_STREAM_SECONDS:
+            response.close()
+            pytest.fail(f"SSE stream exceeded {MAX_STREAM_SECONDS}s without completing")
+
         buffer += chunk
 
         # Process complete events
@@ -141,6 +162,7 @@ def send_message_streaming(session_id: str, content: str, user_id: str = TEST_US
 
 def reset_user_memory(user_id: str = TEST_USER) -> dict:
     """Reset user memory for clean test state."""
+    require_requests()
     response = requests.delete(
         f"{API_BASE}/api/user/memory/reset",
         headers=get_headers(),
@@ -153,6 +175,7 @@ def reset_user_memory(user_id: str = TEST_USER) -> dict:
 
 def get_user_memory(user_id: str = TEST_USER) -> dict:
     """Get user memory."""
+    require_requests()
     response = requests.get(
         f"{API_BASE}/api/user/memory",
         headers=get_headers(),
@@ -447,8 +470,16 @@ def run_all_integration_tests():
     print("# InsightAgent Integration Tests - Phase 6")
     print("#"*60)
 
+    if not INTEGRATION_ENABLED:
+        print("❌ RUN_INTEGRATION_TESTS=1 is required to run integration tests")
+        return False
+
     if not API_KEY:
         print("❌ DEMO_API_KEY environment variable not set")
+        return False
+
+    if requests is None:
+        print("❌ requests is not installed")
         return False
 
     results = {}
