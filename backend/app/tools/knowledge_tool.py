@@ -7,10 +7,11 @@ for metric definitions, targets, strategies, and policies.
 
 from typing import Any
 
-from app.config import get_settings
+from app.services.rag_engine import get_rag_service
+from app.services.tool_middleware import log_tool_call, sanitize_tool_output
 
 
-# Tool definition for ADK
+# Tool definition for ADK/Gemini function calling
 KNOWLEDGE_TOOL_DEFINITION = {
     "name": "search_knowledge_base",
     "description": """Search the company's internal knowledge base for business context.
@@ -54,28 +55,39 @@ Always cite the source document in your response.
 }
 
 
-async def search_knowledge_base(query: str, top_k: int = 3) -> dict[str, Any]:
+async def search_knowledge_base(
+    query: str,
+    top_k: int = 3,
+    user_id: str | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
     """
     Search the knowledge base using Vertex AI RAG Engine.
 
     Args:
         query: The semantic search query
         top_k: Number of results to return (default 3)
+        user_id: Optional user ID for logging
+        session_id: Optional session ID for logging
 
     Returns:
         Dict with success status and list of results with content, source, score
     """
-    # TODO: Phase 2 implementation
-    # This will:
-    # 1. Call Vertex AI RAG Engine retrieval API
-    # 2. Filter by relevance threshold (0.7)
-    # 3. Format results with source attribution
+    # Log tool call
+    if user_id and session_id:
+        log_tool_call(
+            tool_name="search_knowledge_base",
+            parameters={"query": query, "top_k": top_k},
+            user_id=user_id,
+            session_id=session_id,
+        )
 
-    settings = get_settings()
+    # Clamp top_k
+    top_k = max(1, min(top_k, 5))
 
-    return {
-        "success": False,
-        "error": "Knowledge base tool not yet implemented. Coming in Phase 2.",
-        "results": [],
-        "query": query,
-    }
+    # Get RAG service and search
+    service = get_rag_service()
+    result = await service.search(query=query, top_k=top_k)
+
+    # Sanitize output before returning
+    return sanitize_tool_output("search_knowledge_base", result)

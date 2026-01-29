@@ -52,36 +52,75 @@
 - `pricing_policy.md` - Nov 1 price increase (12%), West legacy pricing
 - `customer_segments.md` - Enterprise/SMB/Consumer definitions
 
+### Phase 2: Backend Core Implementation ✅
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 2.1 Agent Setup | ✅ | `InsightAgent` with Gemini 2.5 Flash + function calling |
+| 2.2 BigQuery Tool | ✅ | SELECT-only, dry-run validation, cost limits |
+| 2.3 Knowledge Tool | ✅ | RAG retrieval with relevance scoring |
+| 2.4 Context Tool | ✅ | Session/user context from Firestore |
+| 2.5 Memory Tool | ✅ | Persist findings/preferences to Firestore |
+| 2.6 BigQuery Service | ✅ | Query validation, execution, sanitization |
+| 2.7 RAG Engine Service | ✅ | Vertex AI RAG retrieval |
+| 2.8 Firestore Service | ✅ | Memory CRUD, session management |
+
+**Key Implementation Details:**
+
+1. **Agent Architecture** (`app/agent/insight_agent.py`):
+   - Uses `google.genai.Client` with Vertex AI
+   - Function calling for tool orchestration
+   - Agentic loop (up to 10 iterations)
+   - Streams reasoning traces, content, and memory events
+
+2. **Tools Implemented**:
+   - `query_bigquery` - Executes validated SQL, returns structured data
+   - `search_knowledge_base` - RAG retrieval from corpus
+   - `get_conversation_context` - Session/preferences/past analyses
+   - `save_to_memory` - Persists findings, preferences, context
+
+3. **Security Features**:
+   - SQL injection prevention (prohibited keywords, dry-run)
+   - SELECT-only enforcement via BigQuery dry-run
+   - Cost limits via `maximum_bytes_billed`
+   - PII redaction in logs
+   - User ID validation (path traversal prevention)
+
+**Test Results:**
+```
+✅ BigQuery: Q4 revenue query returns 4 regions, $12.77M total
+✅ RAG: Knowledge search returns relevant documents
+✅ Firestore: Memory save/retrieve/reset works
+✅ Agent: Multi-tool chaining works (8 tools in one query)
+```
+
 ---
 
-## Next Phase: Phase 2 - Backend Core Implementation
+## Next Phase: Phase 3 - API Layer Implementation
 
-### 2.1 Google ADK Agent Setup
-**File:** `backend/app/agent/insight_agent.py`
+### 3.1 FastAPI Application
+**File:** `backend/app/main.py`
 
-- Initialize ADK Agent with `gemini-2.5-flash` model
-- Configure system prompt from spec
-- Register 4 tools with the agent
-- Implement streaming via ADK Runner events
-- Set temperature=0.2 for demo consistency
+- Initialize FastAPI with CORS
+- Add API key authentication
+- Configure SSE streaming support
+- Set up error handling middleware
 
-### 2.2 Tool Implementation
+### 3.2 API Endpoints
+**File:** `backend/app/api/routes.py`
 
-| Tool | File | Purpose |
-|------|------|---------|
-| `query_bigquery` | `backend/app/tools/bigquery_tool.py` | SQL queries with SELECT-only validation |
-| `search_knowledge_base` | `backend/app/tools/knowledge_tool.py` | RAG retrieval from corpus |
-| `get_conversation_context` | `backend/app/tools/context_tool.py` | Session/user context from Firestore |
-| `save_to_memory` | `backend/app/tools/memory_tool.py` | Persist findings to Firestore |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/chat/session` | POST | Create new chat session |
+| `/chat/message` | POST | Send message, receive SSE stream |
+| `/chat/history/{session_id}` | GET | Retrieve conversation history |
+| `/user/memory` | GET | Retrieve user's persistent memory |
+| `/user/memory/reset` | DELETE | Reset user memory (demo feature) |
 
-### 2.3 Services Layer
-
-| Service | File | Purpose |
-|---------|------|---------|
-| BigQuery Service | `backend/app/services/bigquery_service.py` | Query execution, SQL validation |
-| RAG Engine Service | `backend/app/services/rag_engine.py` | Knowledge base retrieval |
-| Firestore Service | `backend/app/services/firestore_service.py` | User memory, session management |
-| Tool Middleware | `backend/app/services/tool_middleware.py` | Output sanitization, logging |
+### 3.3 Streaming Response
+- SSE event types: `reasoning`, `content`, `memory`, `done`
+- Monotonic sequence IDs for reconnection
+- Heartbeat events (every 15s)
 
 ---
 
@@ -89,8 +128,7 @@
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 2 | Backend Core Implementation | ⬜ Next |
-| Phase 3 | API Layer (FastAPI, SSE streaming) | ⬜ |
+| Phase 3 | API Layer (FastAPI, SSE streaming) | ⬜ Next |
 | Phase 5 | Frontend (React, reasoning trace UI) | ⬜ |
 | Phase 6 | Integration & Testing | ⬜ |
 | Phase 7 | Deployment (Cloud Run, Firebase) | ⬜ |
@@ -114,49 +152,32 @@ source .venv/bin/activate
 | BigQuery Dataset | `insightagent_data` |
 | RAG Corpus | `projects/650676557784/locations/asia-south1/ragCorpora/6917529027641081856` |
 
-### SDK Note
-The old `vertexai.generative_models` SDK is **deprecated** (June 2025). Use the new `google.genai.Client` instead:
-
-```python
-from google import genai
-
-client = genai.Client(
-    vertexai=True,
-    project='insightagent-adk',
-    location='asia-south1'
-)
-
-response = client.models.generate_content(
-    model='gemini-2.5-flash',
-    contents='Hello'
-)
-```
-
-### Files Modified
-- `backend/.env` - Contains all environment variables including RAG_CORPUS_NAME
-- `backend/.env.example` - Updated to use asia-south1
-- `GCP_SETUP.md` - Updated to use asia-south1 and new genai SDK
-- `IMPLEMENTATION_PLAN.md` - Updated to use asia-south1 and new genai SDK
-- `.gitignore` - Added `.venv/`
-
-### Verification Commands
+### Test Commands
 ```bash
-# Test BigQuery
-bq query --use_legacy_sql=false "SELECT SUM(revenue) FROM insightagent-adk.insightagent_data.transactions WHERE date >= '2024-10-01'"
+# Test agent directly
+python -c "
+import asyncio
+from app.agent.insight_agent import InsightAgent
 
-# Test Vertex AI
-.venv/bin/python -c "
-from google import genai
-client = genai.Client(vertexai=True, project='insightagent-adk', location='asia-south1')
-response = client.models.generate_content(model='gemini-2.5-flash', contents='Hello')
-print(response.text)
+async def test():
+    agent = InsightAgent('user1', 'session1')
+    async for event in agent.chat('What was our Q4 revenue?'):
+        print(event)
+
+asyncio.run(test())
 "
 
-# Test Firestore
-.venv/bin/python -c "
-from google.cloud import firestore
-db = firestore.Client(project='insightagent-adk')
-print('Connected to:', db.project)
+# Test BigQuery service
+python -c "
+import asyncio
+from app.services.bigquery_service import get_bigquery_service
+
+async def test():
+    svc = get_bigquery_service()
+    result = await svc.execute_query('SELECT SUM(revenue) FROM \`insightagent-adk.insightagent_data.transactions\` WHERE date >= \"2024-10-01\"')
+    print(result)
+
+asyncio.run(test())
 "
 ```
 
@@ -170,7 +191,33 @@ InsightAgent/
 │   ├── .env                   # Environment variables (not in git)
 │   ├── .env.example           # Template for .env
 │   ├── requirements.txt       # Python dependencies
-│   └── app/                   # (to be created in Phase 2)
+│   ├── Dockerfile             # Container definition
+│   └── app/
+│       ├── __init__.py
+│       ├── main.py            # FastAPI entry point
+│       ├── config.py          # Configuration (ADC, settings)
+│       ├── agent/
+│       │   ├── __init__.py
+│       │   ├── insight_agent.py  # ✅ Implemented
+│       │   └── prompts.py        # System prompts
+│       ├── tools/
+│       │   ├── __init__.py       # ✅ Exports all tools
+│       │   ├── bigquery_tool.py  # ✅ Implemented
+│       │   ├── knowledge_tool.py # ✅ Implemented
+│       │   ├── context_tool.py   # ✅ Implemented
+│       │   └── memory_tool.py    # ✅ Implemented
+│       ├── services/
+│       │   ├── __init__.py       # ✅ Exports all services
+│       │   ├── bigquery_service.py  # ✅ Implemented
+│       │   ├── rag_engine.py        # ✅ Implemented
+│       │   ├── firestore_service.py # ✅ Implemented
+│       │   └── tool_middleware.py   # ✅ Implemented
+│       ├── models/
+│       │   ├── __init__.py
+│       │   └── schemas.py        # Pydantic models
+│       └── api/
+│           ├── __init__.py
+│           └── routes.py         # API endpoints (Phase 3)
 ├── knowledge_base/
 │   ├── metrics_definitions.md
 │   ├── company_targets_2024.md
@@ -185,6 +232,9 @@ InsightAgent/
 ├── scripts/
 │   ├── seed_bigquery.py
 │   └── setup_rag_corpus.py
+├── tests/
+│   ├── __init__.py
+│   └── test_demo_data.py
 ├── GCP_SETUP.md
 ├── IMPLEMENTATION_PLAN.md
 └── PROGRESS.md                # This file

@@ -7,10 +7,11 @@ or past analyses to provide personalized responses.
 
 from typing import Any, Literal
 
-from app.config import get_settings
+from app.services.firestore_service import get_firestore_service
+from app.services.tool_middleware import log_tool_call
 
 
-# Tool definition for ADK
+# Tool definition for ADK/Gemini function calling
 CONTEXT_TOOL_DEFINITION = {
     "name": "get_conversation_context",
     "description": """Retrieve context from the current session or user history.
@@ -63,17 +64,70 @@ async def get_conversation_context(
     Returns:
         Dict with context data and last_updated timestamp
     """
-    # TODO: Phase 2 implementation
-    # This will:
-    # 1. Query Firestore for the appropriate context type
-    # 2. Return formatted context with timestamps
+    # Log tool call
+    log_tool_call(
+        tool_name="get_conversation_context",
+        parameters={"context_type": context_type},
+        user_id=user_id,
+        session_id=session_id,
+    )
 
-    settings = get_settings()
+    service = get_firestore_service()
 
-    return {
-        "success": False,
-        "error": "Context tool not yet implemented. Coming in Phase 2.",
-        "context_type": context_type,
-        "data": None,
-        "last_updated": None,
-    }
+    try:
+        if context_type == "current_session":
+            # Get current session context
+            context_data = await service.get_session_context(user_id, session_id)
+            return {
+                "success": True,
+                "context_type": context_type,
+                "data": context_data,
+                "last_updated": context_data.get("last_updated"),
+            }
+
+        elif context_type == "user_preferences":
+            # Get user preferences
+            preferences = await service.get_user_preferences(user_id)
+            memory = await service.get_user_memory(user_id)
+            return {
+                "success": True,
+                "context_type": context_type,
+                "data": {
+                    "preferences": preferences,
+                    "regions_of_interest": preferences.get("regions_of_interest", []),
+                    "role": preferences.get("role"),
+                    "preferred_format": preferences.get("preferred_format"),
+                },
+                "last_updated": memory.get("last_updated"),
+            }
+
+        elif context_type == "past_analyses":
+            # Get past session summaries
+            past_sessions = await service.get_past_analyses(user_id, limit=5)
+            return {
+                "success": True,
+                "context_type": context_type,
+                "data": {
+                    "sessions": past_sessions,
+                    "total_sessions": len(past_sessions),
+                },
+                "last_updated": past_sessions[0].get("date") if past_sessions else None,
+            }
+
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown context_type: {context_type}",
+                "context_type": context_type,
+                "data": None,
+                "last_updated": None,
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to retrieve context: {str(e)}",
+            "context_type": context_type,
+            "data": None,
+            "last_updated": None,
+        }

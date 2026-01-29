@@ -5,15 +5,26 @@ Provides user memory CRUD operations, session management,
 and cross-session memory retrieval.
 """
 
+import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
+
+import firebase_admin
+from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.config import get_settings
 
+logger = logging.getLogger(__name__)
 
 # Validation pattern for user IDs
 VALID_USER_ID = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')
+
+# Memory compaction limits
+MAX_FINDINGS_IN_SUMMARY = 5
+MAX_PREFERENCES_IN_SUMMARY = 5
+MAX_SUMMARY_TOKENS = 500  # Approximate limit
 
 
 class FirestoreService:
@@ -29,13 +40,10 @@ class FirestoreService:
     def db(self):
         """Lazy initialization of Firestore client."""
         if self._db is None:
-            # TODO: Phase 2 - initialize firebase_admin
-            # import firebase_admin
-            # from firebase_admin import firestore
-            # if not firebase_admin._apps:
-            #     firebase_admin.initialize_app()
-            # self._db = firestore.client()
-            pass
+            # Initialize firebase_admin if not already done
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app()
+            self._db = firestore.client()
         return self._db
 
     def _validate_user_id(self, user_id: str) -> None:
@@ -43,10 +51,13 @@ class FirestoreService:
         if not VALID_USER_ID.match(user_id):
             raise ValueError(f"Invalid user_id format: {user_id}")
 
-    def _user_doc_path(self, user_id: str) -> str:
-        """Get the document path for a user."""
-        self._validate_user_id(user_id)
-        return f"{self._collection_prefix}_users/{user_id}"
+    def _users_collection(self) -> str:
+        """Get the users collection name."""
+        return f"{self._collection_prefix}_users"
+
+    def _sessions_collection(self, user_id: str) -> str:
+        """Get the sessions subcollection path."""
+        return f"{self._users_collection()}/{user_id}/sessions"
 
     async def get_user_memory(self, user_id: str) -> dict[str, Any]:
         """
@@ -58,19 +69,46 @@ class FirestoreService:
         Returns:
             Dict with summary, preferences, findings
         """
-        # TODO: Phase 2 implementation
         self._validate_user_id(user_id)
 
-        return {
-            "summary": None,
-            "preferences": {},
-            "findings": {},
-            "last_updated": None,
-        }
+        try:
+            doc_ref = self.db.collection(self._users_collection()).document(user_id)
+            doc = doc_ref.get()
+
+            if doc.exists:
+                data = doc.to_dict()
+                return {
+                    "summary": data.get("summary"),
+                    "preferences": data.get("preferences", {}),
+                    "findings": data.get("findings", {}),
+                    "last_updated": data.get("last_updated"),
+                }
+            else:
+                return {
+                    "summary": None,
+                    "preferences": {},
+                    "findings": {},
+                    "last_updated": None,
+                }
+
+        except Exception as e:
+            logger.error(f"Error getting user memory: {e}")
+            return {
+                "summary": None,
+                "preferences": {},
+                "findings": {},
+                "last_updated": None,
+            }
 
     async def get_user_memory_summary(self, user_id: str) -> str | None:
         """
         Get the condensed memory summary for system prompt injection.
+
+        Implements memory compaction rule:
+        - Last N findings (5 most recent)
+        - Top user preferences
+        - Last session summary only
+        - Total < 500 tokens
 
         Args:
             user_id: The user's ID
@@ -78,9 +116,51 @@ class FirestoreService:
         Returns:
             Memory summary string or None
         """
-        # TODO: Phase 2 implementation
         self._validate_user_id(user_id)
-        return None
+
+        try:
+            memory = await self.get_user_memory(user_id)
+
+            if not memory["summary"] and not memory["preferences"] and not memory["findings"]:
+                return None
+
+            parts = []
+
+            # Add stored summary if exists
+            if memory.get("summary"):
+                parts.append(memory["summary"])
+
+            # Add recent preferences
+            if memory.get("preferences"):
+                prefs = memory["preferences"]
+                pref_items = list(prefs.items())[:MAX_PREFERENCES_IN_SUMMARY]
+                if pref_items:
+                    pref_str = ", ".join([f"{k}: {v}" for k, v in pref_items])
+                    parts.append(f"User preferences: {pref_str}")
+
+            # Add recent findings
+            if memory.get("findings"):
+                findings = memory["findings"]
+                finding_items = list(findings.items())[:MAX_FINDINGS_IN_SUMMARY]
+                if finding_items:
+                    findings_str = "; ".join([f"{k}: {v}" for k, v in finding_items])
+                    parts.append(f"Previous findings: {findings_str}")
+
+            if not parts:
+                return None
+
+            summary = "\n".join(parts)
+
+            # Truncate if too long (rough approximation of tokens)
+            max_chars = MAX_SUMMARY_TOKENS * 4  # ~4 chars per token
+            if len(summary) > max_chars:
+                summary = summary[:max_chars] + "..."
+
+            return summary
+
+        except Exception as e:
+            logger.error(f"Error getting memory summary: {e}")
+            return None
 
     async def save_memory(
         self,
@@ -101,17 +181,59 @@ class FirestoreService:
         Returns:
             Dict with success status
         """
-        # TODO: Phase 2 implementation
         self._validate_user_id(user_id)
 
-        return {
-            "success": False,
-            "error": "Memory save not yet implemented. Coming in Phase 2.",
-        }
+        if not key or not key.strip():
+            return {"success": False, "error": "Memory key cannot be empty"}
+
+        if not value or not value.strip():
+            return {"success": False, "error": "Memory value cannot be empty"}
+
+        # Sanitize key (alphanumeric and underscores only)
+        safe_key = re.sub(r'[^a-zA-Z0-9_]', '_', key.strip())[:64]
+
+        try:
+            doc_ref = self.db.collection(self._users_collection()).document(user_id)
+            now = datetime.now(timezone.utc).isoformat()
+
+            # Determine which field to update based on memory_type
+            if memory_type == "finding":
+                field_path = f"findings.{safe_key}"
+            elif memory_type == "preference":
+                field_path = f"preferences.{safe_key}"
+            elif memory_type == "context":
+                # Context updates the summary field
+                field_path = "summary"
+            else:
+                return {"success": False, "error": f"Invalid memory_type: {memory_type}"}
+
+            # Update or create document
+            doc_ref.set({
+                field_path.split('.')[0]: {safe_key: value} if '.' in field_path else value,
+                "last_updated": now,
+            }, merge=True)
+
+            logger.info(f"Saved memory for user {user_id[:4]}***: {memory_type}/{safe_key}")
+
+            return {
+                "success": True,
+                "memory_type": memory_type,
+                "key": safe_key,
+                "saved_at": now,
+            }
+
+        except Exception as e:
+            logger.error(f"Error saving memory: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to save memory: {str(e)}",
+            }
 
     async def create_session(self, user_id: str, session_id: str) -> dict[str, Any]:
         """
         Create a new chat session.
+
+        Loads user memory and creates session with injected memory snapshot.
 
         Args:
             user_id: The user's ID
@@ -120,15 +242,88 @@ class FirestoreService:
         Returns:
             Dict with session details and injected memory
         """
-        # TODO: Phase 2 implementation
         self._validate_user_id(user_id)
 
-        return {
-            "session_id": session_id,
-            "user_id": user_id,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "injected_memory_snapshot": None,
-        }
+        try:
+            now = datetime.now(timezone.utc)
+
+            # Get memory summary for injection
+            memory_summary = await self.get_user_memory_summary(user_id)
+
+            # Calculate session expiry (24 hours)
+            expire_at = now + timedelta(hours=24)
+
+            # Create session document
+            session_data = {
+                "user_id": user_id,
+                "session_id": session_id,
+                "created_at": now.isoformat(),
+                "expire_at": expire_at.isoformat(),
+                "injected_memory_snapshot": memory_summary,
+                "topics": [],
+                "metrics_queried": [],
+                "findings": [],
+            }
+
+            # Save to Firestore
+            session_ref = self.db.collection(
+                self._sessions_collection(user_id)
+            ).document(session_id)
+            session_ref.set(session_data)
+
+            logger.info(f"Created session {session_id[:8]}... for user {user_id[:4]}***")
+
+            return session_data
+
+        except Exception as e:
+            logger.error(f"Error creating session: {e}")
+            # Return minimal session data even on error
+            return {
+                "session_id": session_id,
+                "user_id": user_id,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "injected_memory_snapshot": None,
+                "error": str(e),
+            }
+
+    async def update_session_context(
+        self,
+        user_id: str,
+        session_id: str,
+        topic: str | None = None,
+        metric: str | None = None,
+        finding: str | None = None,
+    ) -> None:
+        """
+        Update session context with new information.
+
+        Args:
+            user_id: The user's ID
+            session_id: The session ID
+            topic: Topic discussed (optional)
+            metric: Metric queried (optional)
+            finding: Finding made (optional)
+        """
+        self._validate_user_id(user_id)
+
+        try:
+            session_ref = self.db.collection(
+                self._sessions_collection(user_id)
+            ).document(session_id)
+
+            updates = {"last_updated": datetime.now(timezone.utc).isoformat()}
+
+            if topic:
+                updates["topics"] = firestore.ArrayUnion([topic])
+            if metric:
+                updates["metrics_queried"] = firestore.ArrayUnion([metric])
+            if finding:
+                updates["findings"] = firestore.ArrayUnion([finding])
+
+            session_ref.update(updates)
+
+        except Exception as e:
+            logger.error(f"Error updating session context: {e}")
 
     async def get_session_context(
         self,
@@ -145,15 +340,38 @@ class FirestoreService:
         Returns:
             Dict with session context
         """
-        # TODO: Phase 2 implementation
         self._validate_user_id(user_id)
 
-        return {
-            "topics": [],
-            "metrics_queried": [],
-            "findings": [],
-            "last_updated": None,
-        }
+        try:
+            session_ref = self.db.collection(
+                self._sessions_collection(user_id)
+            ).document(session_id)
+            doc = session_ref.get()
+
+            if doc.exists:
+                data = doc.to_dict()
+                return {
+                    "topics": data.get("topics", []),
+                    "metrics_queried": data.get("metrics_queried", []),
+                    "findings": data.get("findings", []),
+                    "last_updated": data.get("last_updated"),
+                }
+            else:
+                return {
+                    "topics": [],
+                    "metrics_queried": [],
+                    "findings": [],
+                    "last_updated": None,
+                }
+
+        except Exception as e:
+            logger.error(f"Error getting session context: {e}")
+            return {
+                "topics": [],
+                "metrics_queried": [],
+                "findings": [],
+                "last_updated": None,
+            }
 
     async def get_past_analyses(self, user_id: str, limit: int = 5) -> list[dict]:
         """
@@ -166,10 +384,46 @@ class FirestoreService:
         Returns:
             List of session summaries
         """
-        # TODO: Phase 2 implementation
         self._validate_user_id(user_id)
 
-        return []
+        try:
+            sessions_ref = self.db.collection(self._sessions_collection(user_id))
+            query = sessions_ref.order_by(
+                "created_at", direction=firestore.Query.DESCENDING
+            ).limit(limit)
+
+            docs = query.stream()
+
+            sessions = []
+            for doc in docs:
+                data = doc.to_dict()
+                sessions.append({
+                    "session_id": data.get("session_id"),
+                    "date": data.get("created_at"),
+                    "topics": data.get("topics", []),
+                    "findings": data.get("findings", []),
+                })
+
+            return sessions
+
+        except Exception as e:
+            logger.error(f"Error getting past analyses: {e}")
+            return []
+
+    async def get_user_preferences(self, user_id: str) -> dict[str, Any]:
+        """
+        Get user preferences.
+
+        Args:
+            user_id: The user's ID
+
+        Returns:
+            Dict with user preferences
+        """
+        self._validate_user_id(user_id)
+
+        memory = await self.get_user_memory(user_id)
+        return memory.get("preferences", {})
 
     async def reset_user_memory(self, user_id: str) -> dict[str, Any]:
         """
@@ -181,13 +435,39 @@ class FirestoreService:
         Returns:
             Dict with success status
         """
-        # TODO: Phase 2 implementation
         self._validate_user_id(user_id)
 
-        return {
-            "success": False,
-            "error": "Memory reset not yet implemented. Coming in Phase 2.",
-        }
+        try:
+            # Delete user document
+            user_ref = self.db.collection(self._users_collection()).document(user_id)
+            user_ref.delete()
+
+            # Delete all sessions (batch delete)
+            sessions_ref = self.db.collection(self._sessions_collection(user_id))
+            docs = sessions_ref.stream()
+
+            batch = self.db.batch()
+            count = 0
+            for doc in docs:
+                batch.delete(doc.reference)
+                count += 1
+
+            if count > 0:
+                batch.commit()
+
+            logger.info(f"Reset memory for user {user_id[:4]}***: deleted {count} sessions")
+
+            return {
+                "success": True,
+                "sessions_deleted": count,
+            }
+
+        except Exception as e:
+            logger.error(f"Error resetting memory: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to reset memory: {str(e)}",
+            }
 
 
 # Singleton instance

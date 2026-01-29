@@ -7,10 +7,11 @@ to Firestore for future reference.
 
 from typing import Any, Literal
 
-from app.config import get_settings
+from app.services.firestore_service import get_firestore_service
+from app.services.tool_middleware import log_tool_call
 
 
-# Tool definition for ADK
+# Tool definition for ADK/Gemini function calling
 MEMORY_TOOL_DEFINITION = {
     "name": "save_to_memory",
     "description": """Save important information for future reference.
@@ -75,18 +76,30 @@ async def save_to_memory(
     Returns:
         Dict with success status and saved details
     """
-    # TODO: Phase 2 implementation
-    # This will:
-    # 1. Validate key and value
-    # 2. Write to appropriate Firestore collection
-    # 3. Return confirmation
+    # Log tool call
+    log_tool_call(
+        tool_name="save_to_memory",
+        parameters={"memory_type": memory_type, "key": key, "value": value},
+        user_id=user_id,
+        session_id=session_id,
+    )
 
-    settings = get_settings()
+    service = get_firestore_service()
 
-    return {
-        "success": False,
-        "error": "Memory tool not yet implemented. Coming in Phase 2.",
-        "memory_type": memory_type,
-        "key": key,
-        "saved": False,
-    }
+    # Save to user memory
+    result = await service.save_memory(
+        user_id=user_id,
+        memory_type=memory_type,
+        key=key,
+        value=value,
+    )
+
+    # Also update session context if it's a finding
+    if result.get("success") and memory_type == "finding":
+        await service.update_session_context(
+            user_id=user_id,
+            session_id=session_id,
+            finding=f"{key}: {value}",
+        )
+
+    return result

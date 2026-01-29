@@ -6,9 +6,15 @@ Implements retrieval as a custom tool (not ADK's built-in RAG tool
 due to single-tool-per-agent limitation).
 """
 
+import logging
 from typing import Any
 
-from app.config import get_settings
+from vertexai import rag
+import vertexai
+
+from app.config import get_settings, init_vertex_ai
+
+logger = logging.getLogger(__name__)
 
 
 class RAGEngineService:
@@ -18,6 +24,13 @@ class RAGEngineService:
         """Initialize the RAG Engine service."""
         self.settings = get_settings()
         self._corpus_name = self.settings.rag_corpus_name
+        self._initialized = False
+
+    def _ensure_initialized(self) -> None:
+        """Ensure Vertex AI is initialized."""
+        if not self._initialized:
+            init_vertex_ai()
+            self._initialized = True
 
     @property
     def corpus_name(self) -> str:
@@ -41,42 +54,107 @@ class RAGEngineService:
         Returns:
             Dict with results containing content, source, and score
         """
-        # TODO: Phase 2 implementation
-        # from vertexai import rag
-        #
-        # response = rag.retrieval_query(
-        #     rag_resources=[rag.RagResource(rag_corpus=self.corpus_name)],
-        #     text=query,
-        #     rag_retrieval_config=rag.RagRetrievalConfig(
-        #         top_k=top_k,
-        #         filter=rag.Filter(vector_distance_threshold=relevance_threshold)
-        #     )
-        # )
-        # return self._format_results(response)
+        if not query or not query.strip():
+            return {
+                "success": False,
+                "error": "Query cannot be empty",
+                "results": [],
+                "query": query,
+            }
 
-        return {
-            "success": False,
-            "error": "RAG search not yet implemented. Coming in Phase 2.",
-            "results": [],
-            "query": query,
-        }
+        if not self.corpus_name:
+            return {
+                "success": False,
+                "error": "RAG corpus not configured. Set RAG_CORPUS_NAME in environment.",
+                "results": [],
+                "query": query,
+            }
 
-    def _format_results(self, response: Any) -> dict[str, Any]:
+        # Clamp top_k to valid range
+        top_k = max(1, min(top_k, 10))
+
+        try:
+            self._ensure_initialized()
+
+            # Perform RAG retrieval query
+            response = rag.retrieval_query(
+                rag_resources=[
+                    rag.RagResource(rag_corpus=self.corpus_name)
+                ],
+                text=query,
+                rag_retrieval_config=rag.RagRetrievalConfig(
+                    top_k=top_k,
+                    filter=rag.Filter(
+                        vector_distance_threshold=relevance_threshold
+                    )
+                ),
+            )
+
+            return self._format_results(response, query)
+
+        except Exception as e:
+            logger.error(f"RAG search failed: {e}")
+            return {
+                "success": False,
+                "error": f"Knowledge base search failed: {str(e)}",
+                "results": [],
+                "query": query,
+            }
+
+    def _format_results(self, response: Any, query: str) -> dict[str, Any]:
         """
         Format RAG Engine response into standard format.
 
         Args:
             response: Raw RAG Engine response
+            query: Original query string
 
         Returns:
             Formatted results dict
         """
-        # TODO: Phase 2 implementation
-        return {
-            "success": True,
-            "results": [],
-            "query": "",
-        }
+        results = []
+
+        try:
+            # Extract contexts from response
+            if hasattr(response, 'contexts') and response.contexts:
+                for context in response.contexts.contexts:
+                    # Extract source file name from URI
+                    source_uri = getattr(context, 'source_uri', '') or ''
+                    source_name = source_uri.split('/')[-1] if source_uri else 'unknown'
+
+                    # Get the text content
+                    content = getattr(context, 'text', '') or ''
+
+                    # Get relevance/distance score
+                    # Note: Lower distance = more relevant
+                    distance = getattr(context, 'distance', 1.0)
+                    # Convert distance to similarity score (0-1, higher is better)
+                    relevance_score = max(0, 1 - distance) if distance else 0.5
+
+                    results.append({
+                        "content": content,
+                        "source": source_name,
+                        "relevance_score": round(relevance_score, 3),
+                        "source_uri": source_uri,
+                    })
+
+            logger.info(f"RAG search returned {len(results)} results for query: {query[:50]}...")
+
+            return {
+                "success": True,
+                "results": results,
+                "query": query,
+                "total_results": len(results),
+            }
+
+        except Exception as e:
+            logger.error(f"Error formatting RAG results: {e}")
+            return {
+                "success": False,
+                "error": f"Error processing search results: {str(e)}",
+                "results": [],
+                "query": query,
+            }
 
 
 # Singleton instance
