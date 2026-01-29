@@ -41,7 +41,7 @@ class RAGEngineService:
         self,
         query: str,
         top_k: int = 3,
-        relevance_threshold: float = 0.7,
+        relevance_threshold: float = 0.3,
     ) -> dict[str, Any]:
         """
         Search the knowledge base for relevant content.
@@ -134,15 +134,14 @@ class RAGEngineService:
                     # Get the text content
                     content = getattr(context, 'text', '') or ''
 
-                    # Get relevance/distance score
-                    # Note: Lower distance = more relevant
-                    distance = getattr(context, 'distance', None)
-                    # Convert distance to similarity score (0-1, higher is better)
-                    # Use 'is not None' to handle distance=0.0 correctly (perfect match)
-                    if distance is not None:
-                        relevance_score = max(0, 1 - distance)
+                    # Get relevance score
+                    # Note: Vertex AI RAG API returns 'score' (similarity, higher = more relevant)
+                    # not 'distance'. Score is typically 0-1 range.
+                    score = getattr(context, 'score', None)
+                    if score is not None:
+                        relevance_score = float(score)
                     else:
-                        relevance_score = 0.5  # Default when distance not provided
+                        relevance_score = 0.5  # Default when score not provided
 
                     results.append({
                         "content": content,
