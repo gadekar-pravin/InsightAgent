@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.config import get_settings
-from app.main import verify_api_key
+from app.api.auth import verify_api_key
 from app.models.schemas import (
     SessionCreate,
     SessionResponse,

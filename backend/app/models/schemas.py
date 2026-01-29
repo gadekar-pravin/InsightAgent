@@ -77,9 +77,9 @@ class MessageResponse(BaseModel):
     """Non-streaming response for a message."""
     session_id: str
     content: str
-    reasoning_trace: list[dict] = []
-    memory_saved: list[dict] = []
-    suggested_followups: list[str] = []
+    reasoning_trace: list[dict] = Field(default_factory=list)
+    memory_saved: list[dict] = Field(default_factory=list)
+    suggested_followups: list[str] = Field(default_factory=list)
 
 
 # =============================================================================
@@ -113,7 +113,7 @@ class MemoryEvent(BaseModel):
 class DoneEvent(BaseModel):
     """Event signaling completion."""
     seq: int
-    suggested_followups: list[str] = []
+    suggested_followups: list[str] = Field(default_factory=list)
 
 
 # =============================================================================
@@ -154,9 +154,9 @@ class UserMemory(BaseModel):
     """Complete user memory state."""
     user_id: str
     summary: str | None = None
-    preferences: dict[str, Any] = {}
-    findings: dict[str, Any] = {}
-    recent_sessions: list[dict] = []
+    preferences: dict[str, Any] = Field(default_factory=dict)
+    findings: dict[str, Any] = Field(default_factory=dict)
+    recent_sessions: list[dict] = Field(default_factory=list)
     last_updated: datetime | None = None
 
 

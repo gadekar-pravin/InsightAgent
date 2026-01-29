@@ -4,32 +4,13 @@ InsightAgent FastAPI Application Entry Point.
 This is the main entry point for the InsightAgent backend API.
 """
 
-import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, Security, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import APIKeyHeader
 
 from app.config import get_settings, init_vertex_ai
 from app.api.routes import router as api_router
-
-
-# API Key authentication
-API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-async def verify_api_key(api_key: str = Security(API_KEY_HEADER)) -> str:
-    """Verify the API key for demo authentication."""
-    settings = get_settings()
-
-    # Skip auth in development if no key is set
-    if settings.environment == "development" and not settings.demo_api_key:
-        return "dev-mode"
-
-    if not api_key or api_key != settings.demo_api_key:
-        raise HTTPException(status_code=403, detail="Invalid or missing API key")
-    return api_key
 
 
 @asynccontextmanager

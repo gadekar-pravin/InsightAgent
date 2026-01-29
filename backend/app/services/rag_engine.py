@@ -136,9 +136,13 @@ class RAGEngineService:
 
                     # Get relevance/distance score
                     # Note: Lower distance = more relevant
-                    distance = getattr(context, 'distance', 1.0)
+                    distance = getattr(context, 'distance', None)
                     # Convert distance to similarity score (0-1, higher is better)
-                    relevance_score = max(0, 1 - distance) if distance else 0.5
+                    # Use 'is not None' to handle distance=0.0 correctly (perfect match)
+                    if distance is not None:
+                        relevance_score = max(0, 1 - distance)
+                    else:
+                        relevance_score = 0.5  # Default when distance not provided
 
                     results.append({
                         "content": content,
