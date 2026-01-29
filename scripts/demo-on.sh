@@ -1,13 +1,17 @@
 #!/bin/bash
 # Enable InsightAgent demo - run before demo starts
-set -e
+set -euo pipefail
 
 PROJECT="${PROJECT:-insightagent-adk}"
 REGION="${REGION:-asia-south1}"
 SERVICE="${SERVICE:-insightagent}"
 
 # Generate new key
-NEW_KEY=$(openssl rand -base64 32 | tr -d '/+=' | head -c 43)
+NEW_KEY="$(openssl rand -base64 32 | tr -d '/+=' | head -c 43)"
+if [[ -z "$NEW_KEY" ]]; then
+  echo "ERROR: Failed to generate demo API key (openssl returned empty output)."
+  exit 1
+fi
 
 echo "🚀 Enabling InsightAgent demo..."
 

@@ -23,7 +23,8 @@ import time
 import pytest
 
 # Only require optional deps when integration tests are explicitly enabled.
-INTEGRATION_ENABLED = os.getenv("RUN_INTEGRATION_TESTS") == "1"
+# Accept common truthy values: "1", "true", "yes" (case-insensitive)
+INTEGRATION_ENABLED = os.getenv("RUN_INTEGRATION_TESTS", "").lower() in ("1", "true", "yes")
 try:
     import requests
 except ModuleNotFoundError:
@@ -42,7 +43,11 @@ TEST_USER = "integration_test_user"
 # Request timeouts (connect, read) in seconds
 REQUEST_TIMEOUT = (5, 120)  # 5s connect, 120s read for LLM responses
 # Max overall duration for a single SSE stream (prevents hangs if server never closes).
-MAX_STREAM_SECONDS = int(os.getenv("INTEGRATION_MAX_STREAM_SECONDS", "180"))
+# Guard against invalid values to avoid import-time crash when tests are skipped.
+try:
+    MAX_STREAM_SECONDS = int(os.getenv("INTEGRATION_MAX_STREAM_SECONDS", "180"))
+except ValueError:
+    MAX_STREAM_SECONDS = 180
 
 # Skip integration tests unless explicitly enabled
 SKIP_INTEGRATION = not INTEGRATION_ENABLED
