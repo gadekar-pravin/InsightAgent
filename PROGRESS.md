@@ -339,7 +339,7 @@ relevance_score = float(score) if score else 0.5
 
 ### Phase 7: Deployment 🔄
 
-**Status:** In Progress (Backend Complete, Frontend Pending Manual Step)
+**Status:** In Progress (Backend ✅, Frontend needs Firebase Console setup or Cloud Run deploy)
 
 ### 7.1 Backend Deployment (Cloud Run) ✅
 
@@ -357,37 +357,47 @@ relevance_score = float(score) if score else 0.5
 - **Memory:** 2GB, CPU: 2
 - **Min/Max Instances:** 0/5
 
-### 7.2 Frontend Deployment (Firebase Hosting) 🔄
+### 7.2 Frontend Deployment ⏸️
 
 | Task | Status | Notes |
 |------|--------|-------|
 | Firebase configuration | ✅ | `firebase.json`, `.firebaserc` created |
 | Production build | ✅ | `npm run build` successful |
-| API proxy rewrites | ✅ | Configured to Cloud Run service |
-| Firebase login | ⬜ | Requires interactive terminal |
-| Deploy to hosting | ⬜ | Blocked by login |
+| Firebase project setup | ❌ | Requires console ToS acceptance |
+| Cloud Run alternative | 🔄 | Dockerfile + nginx.conf created |
 
-**Manual Steps Required:**
+**Firebase Hosting Issue:**
+Firebase CLI requires the project to be added to Firebase via console first (Terms of Service acceptance).
+The `firebase projects:addfirebase` command fails with permission denied even with `roles/firebase.admin`.
+
+**Option A: Firebase Console Setup (Recommended)**
+1. Go to https://console.firebase.google.com/
+2. Click "Add project" → Select existing GCP project `insightagent-adk`
+3. Accept Terms of Service
+4. Then run:
+   ```bash
+   cd frontend
+   firebase deploy --only hosting
+   ```
+
+**Option B: Cloud Run Frontend (Alternative)**
+Deploy frontend as a separate Cloud Run service with nginx proxy:
 ```bash
 cd frontend
-
-# 1. Login to Firebase (opens browser)
-firebase login
-
-# 2. Deploy to Firebase Hosting
-firebase deploy --only hosting
+gcloud builds submit --tag=asia-south1-docker.pkg.dev/insightagent-adk/insightagent/frontend:latest --project=insightagent-adk --region=asia-south1
+gcloud run deploy insightagent-frontend --image=asia-south1-docker.pkg.dev/insightagent-adk/insightagent/frontend:latest --project=insightagent-adk --region=asia-south1 --allow-unauthenticated
 ```
 
-**Firebase Hosting Configuration:**
-- API calls (`/api/**`) rewritten to Cloud Run service
-- SPA routing (all paths → `index.html`)
-- Static asset caching (1 year for JS/CSS/images)
+**Files Created for Cloud Run Alternative:**
+- `frontend/Dockerfile` - Multi-stage build (node → nginx)
+- `frontend/nginx.conf` - API proxy to backend, SPA routing
 
 ### 7.3 Post-Deployment Tasks ⬜
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Update CORS origins | ⬜ | Add Firebase hosting URL |
+| Complete frontend deployment | ⬜ | Choose Option A or B above |
+| Update CORS origins | ⬜ | Add frontend URL to backend |
 | Verify end-to-end | ⬜ | Test chat flow on production |
 | Warm-up instances | ⬜ | Set min-instances=1 before demo |
 
