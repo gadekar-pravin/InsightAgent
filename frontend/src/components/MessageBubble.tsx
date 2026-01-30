@@ -30,7 +30,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     <div className="flex gap-4 max-w-4xl">
       {/* AI Avatar */}
       <div className="size-10 rounded-lg bg-primary/10 dark:bg-primary/20 flex-shrink-0 flex items-center justify-center">
-        <span className="material-symbols-outlined text-2xl text-primary">lightbulb</span>
+        <span className="material-symbols-outlined text-2xl text-primary">auto_awesome</span>
       </div>
       {/* Message Content */}
       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
