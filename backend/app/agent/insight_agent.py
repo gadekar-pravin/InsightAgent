@@ -72,6 +72,17 @@ class InsightAgent:
             "save_to_memory": save_to_memory,
         }
 
+    # Maximum number of recent messages to load from history
+    # Keeps context manageable and avoids Gemini context overflow
+    MAX_HISTORY_MESSAGES = 20
+
+    # Valid role mappings from Firestore to Gemini
+    ROLE_MAPPING = {
+        "user": "user",
+        "assistant": "model",
+        "model": "model",  # Handle if Gemini's role name is stored directly
+    }
+
     def _load_conversation_history(
         self,
         conversation_history: list[dict] | None,
@@ -88,17 +99,23 @@ class InsightAgent:
         if not conversation_history:
             return []
 
+        # Limit to most recent messages to avoid context overflow
+        recent_messages = conversation_history[-self.MAX_HISTORY_MESSAGES:]
+
         history = []
-        for msg in conversation_history:
-            role = msg.get("role", "user")
+        for msg in recent_messages:
+            role = msg.get("role", "")
             content = msg.get("content", "")
 
             # Skip empty messages
             if not content:
                 continue
 
-            # Gemini uses "user" and "model" roles
-            gemini_role = "model" if role == "assistant" else "user"
+            # Map to Gemini role, skip unknown roles
+            gemini_role = self.ROLE_MAPPING.get(role)
+            if not gemini_role:
+                logger.warning(f"Skipping message with unknown role: {role}")
+                continue
 
             history.append(
                 types.Content(
@@ -106,6 +123,11 @@ class InsightAgent:
                     parts=[types.Part.from_text(text=content)],
                 )
             )
+
+        # Ensure history starts with a user message (Gemini requirement)
+        while history and history[0].role == "model":
+            logger.warning("Dropping leading model message to ensure valid role ordering")
+            history.pop(0)
 
         return history
 

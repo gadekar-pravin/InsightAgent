@@ -89,8 +89,12 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
     """
     firestore = get_firestore_service()
 
-    # Get conversation history for context
-    session_history = await firestore.get_session_history(request.user_id, request.session_id)
+    # Get recent conversation history for context (limit to avoid context overflow)
+    # The agent also applies its own limit, but limiting at DB level is more efficient
+    MAX_HISTORY_FOR_CONTEXT = 20
+    session_history = await firestore.get_session_history(
+        request.user_id, request.session_id, limit=MAX_HISTORY_FOR_CONTEXT
+    )
     conversation_history = session_history.get("messages", []) if "error" not in session_history else []
 
     # Save user message to history

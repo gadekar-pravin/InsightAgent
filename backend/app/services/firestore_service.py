@@ -559,13 +559,16 @@ class FirestoreService:
         self,
         user_id: str,
         session_id: str,
+        limit: int | None = None,
     ) -> dict[str, Any]:
         """
-        Get full conversation history for a session.
+        Get conversation history for a session.
 
         Args:
             user_id: The user's ID
             session_id: The session ID
+            limit: Optional maximum number of recent messages to return.
+                   If None, returns all messages.
 
         Returns:
             Dict with session metadata and messages
@@ -584,12 +587,22 @@ class FirestoreService:
 
             session_data = session_doc.to_dict()
 
-            # Get all messages ordered by timestamp
+            # Get messages from subcollection
             messages_ref = self.db.collection(
                 f"{self._sessions_collection(user_id)}/{session_id}/messages"
             )
-            query = messages_ref.order_by("timestamp")
-            message_docs = query.stream()
+
+            if limit:
+                # Get most recent N messages: order DESC, limit, then reverse
+                query = messages_ref.order_by(
+                    "timestamp", direction=firestore.Query.DESCENDING
+                ).limit(limit)
+                message_docs = list(query.stream())
+                message_docs.reverse()  # Restore chronological order
+            else:
+                # Get all messages in chronological order
+                query = messages_ref.order_by("timestamp")
+                message_docs = query.stream()
 
             messages = []
             for doc in message_docs:
