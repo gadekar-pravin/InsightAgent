@@ -34,9 +34,9 @@ const SUGGESTED_QUESTIONS = [
 
 export function WelcomeScreen({ userName = 'there', onQuestionClick }: WelcomeScreenProps) {
   return (
-    <div className="max-w-[700px] w-full mx-auto px-6 py-6 flex flex-col">
+    <div className="max-w-[700px] w-full mx-auto px-6 py-4 flex flex-col">
       {/* Headline */}
-      <div className="mb-6 text-center">
+      <div className="mb-5 text-center">
         <h1 className="text-[#0d141b] dark:text-white tracking-tight text-2xl font-bold leading-tight">
           Welcome back, {userName}
         </h1>
@@ -46,7 +46,7 @@ export function WelcomeScreen({ userName = 'there', onQuestionClick }: WelcomeSc
       </div>
 
       {/* Question Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         {SUGGESTED_QUESTIONS.map((q) => (
           <QuestionCard
             key={q.title}
