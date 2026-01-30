@@ -59,23 +59,22 @@ export function Header({
             InsightAgent
           </h2>
         </button>
-        <span className="text-slate-400 dark:text-slate-500 mx-2">|</span>
-        <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
-          Internal Demo by LTIMindtree IMS team
+        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          Internal Demo • LTIMindtree IMS
         </span>
+      </div>
+      <div className="flex items-center gap-3">
         {/* New Chat button */}
         {onNewChat && (
           <button
             onClick={onNewChat}
-            className="ml-4 flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors shadow-sm"
             title="Start a new chat"
           >
             <span className="material-symbols-outlined text-base">add</span>
             <span className="hidden sm:inline">New Chat</span>
           </button>
         )}
-      </div>
-      <div className="flex items-center gap-3">
         {/* Gemini usage (session total) */}
         <div
           className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200"
