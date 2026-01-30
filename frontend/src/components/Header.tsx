@@ -67,7 +67,7 @@ export function Header({
         {onNewChat && (
           <button
             onClick={onNewChat}
-            className="ml-4 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            className="ml-4 flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors shadow-sm"
             title="Start a new chat"
           >
             <span className="material-symbols-outlined text-base">add</span>
