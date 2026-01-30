@@ -20,6 +20,22 @@ This document provides a detailed technical overview of InsightAgent's architect
 
 ---
 
+### Diagram Color Legend
+
+All diagrams in this document follow a consistent color theme:
+
+| Color | Hex | Meaning |
+|-------|-----|---------|
+| **Blue** | `#1A73E8` | Compute & Hosting (Cloud Run, Firebase Hosting) |
+| **Purple** | `#9334E6` | AI/ML Services (Vertex AI, Gemini, RAG Engine) |
+| **Green** | `#34A853` | Data Storage (BigQuery, Firestore) + Success/Selected |
+| **Amber** | `#F9AB00` | Decision Points, Warnings, Build Steps |
+| **Red** | `#EA4335` | Security Controls, Auth, Errors |
+| **Gray** | `#5F6368` | External/Users |
+| **Light variants** | `#E8F0FE`, `#E6F4EA`, etc. | Unselected options, secondary elements |
+
+---
+
 ## 1. System Overview
 
 InsightAgent enables business users to conduct investigative analytics through natural conversation. The system combines:
@@ -62,12 +78,12 @@ flowchart TB
     AGENT -->|search_knowledge_base| RAG
     AGENT -->|get_context / save_memory| FS
 
-    style UI fill:#4285F4,color:#fff
-    style CR fill:#4285F4,color:#fff
-    style AGENT fill:#EA4335,color:#fff
+    style UI fill:#1A73E8,color:#fff
+    style CR fill:#1A73E8,color:#fff
+    style AGENT fill:#9334E6,color:#fff
     style BQ fill:#34A853,color:#fff
-    style RAG fill:#FBBC04,color:#000
-    style FS fill:#FF6D01,color:#fff
+    style RAG fill:#9334E6,color:#fff
+    style FS fill:#34A853,color:#fff
 ```
 
 ### Architecture Principles
@@ -100,10 +116,14 @@ flowchart LR
     B -->|Selected| FRONTEND[Static SPA<br/>Global CDN<br/>Zero Cold Starts]
     E -->|Selected| BACKEND[Container Flexibility<br/>SSE Support<br/>Concurrency Control]
 
-    style B fill:#34A853,color:#fff
-    style E fill:#34A853,color:#fff
-    style FRONTEND fill:#E8F5E9
-    style BACKEND fill:#E8F5E9
+    style A fill:#E8F0FE,color:#1A73E8
+    style B fill:#1A73E8,color:#fff
+    style C fill:#E8F0FE,color:#1A73E8
+    style D fill:#E8F0FE,color:#1A73E8
+    style E fill:#1A73E8,color:#fff
+    style F fill:#E8F0FE,color:#1A73E8
+    style FRONTEND fill:#E6F4EA,color:#137333
+    style BACKEND fill:#E6F4EA,color:#137333
 ```
 
 | Service | Selection | Rationale |
@@ -135,10 +155,14 @@ flowchart TB
     GEMINI -->|Selected| WHY_GEMINI[Function Calling<br/>Streaming<br/>Native GCP Integration]
     RAG_ENGINE -->|Selected| WHY_RAG[Managed Corpus<br/>Built-in Chunking<br/>No Infra Management]
 
-    style GEMINI fill:#EA4335,color:#fff
-    style RAG_ENGINE fill:#FBBC04,color:#000
-    style WHY_GEMINI fill:#FFEBEE
-    style WHY_RAG fill:#FFF8E1
+    style GEMINI fill:#9334E6,color:#fff
+    style RAG_ENGINE fill:#9334E6,color:#fff
+    style EMBED fill:#F3E8FF,color:#7627BB
+    style OPENAI fill:#E8F0FE,color:#1A73E8
+    style MATCHING fill:#E8F0FE,color:#1A73E8
+    style PINECONE fill:#E8F0FE,color:#1A73E8
+    style WHY_GEMINI fill:#E6F4EA,color:#137333
+    style WHY_RAG fill:#E6F4EA,color:#137333
 ```
 
 | Service | Selection | Rationale |
@@ -172,9 +196,13 @@ flowchart LR
     FS -->|Selected| WHY_FS[Real-time Sync<br/>Hierarchical Data<br/>Strong Consistency<br/>Serverless]
 
     style BQ fill:#34A853,color:#fff
-    style FS fill:#FF6D01,color:#fff
-    style WHY_BQ fill:#E8F5E9
-    style WHY_FS fill:#FFF3E0
+    style CLOUDSQL fill:#E6F4EA,color:#137333
+    style SPANNER fill:#E6F4EA,color:#137333
+    style FS fill:#34A853,color:#fff
+    style DATASTORE fill:#E6F4EA,color:#137333
+    style BIGTABLE fill:#E6F4EA,color:#137333
+    style WHY_BQ fill:#E6F4EA,color:#137333
+    style WHY_FS fill:#E6F4EA,color:#137333
 ```
 
 | Service | Selection | Use Case | Rationale |
@@ -231,6 +259,22 @@ flowchart TB
     S1 -->|BigQuery API| BQ[(BigQuery)]
     S2 -->|Vertex AI API| RAG[(RAG Engine)]
     S3 -->|Firestore API| FS[(Firestore)]
+
+    style MAIN fill:#1A73E8,color:#fff
+    style ROUTES fill:#1A73E8,color:#fff
+    style AUTH fill:#EA4335,color:#fff
+    style AGENT fill:#9334E6,color:#fff
+    style PROMPTS fill:#F3E8FF,color:#7627BB
+    style T1 fill:#E6F4EA,color:#137333
+    style T2 fill:#F3E8FF,color:#7627BB
+    style T3 fill:#E6F4EA,color:#137333
+    style T4 fill:#E6F4EA,color:#137333
+    style S1 fill:#34A853,color:#fff
+    style S2 fill:#9334E6,color:#fff
+    style S3 fill:#34A853,color:#fff
+    style BQ fill:#34A853,color:#fff
+    style RAG fill:#9334E6,color:#fff
+    style FS fill:#34A853,color:#fff
 ```
 
 ### 4.2 Agent Architecture
@@ -255,8 +299,13 @@ flowchart TB
     CHECK -->|Yes| EXEC --> FEED --> CALL
     CHECK -->|No| STREAM
 
-    style CHECK fill:#FBBC04,color:#000
+    style INIT fill:#E8F0FE,color:#1A73E8
+    style BUILD fill:#E8F0FE,color:#1A73E8
+    style CALL fill:#9334E6,color:#fff
+    style CHECK fill:#F9AB00,color:#fff
     style EXEC fill:#34A853,color:#fff
+    style FEED fill:#E6F4EA,color:#137333
+    style STREAM fill:#1A73E8,color:#fff
 ```
 
 ### 4.3 Frontend Component Diagram
@@ -290,6 +339,18 @@ flowchart TB
     CHAT --> MSG & INPUT & FOLLOWUP
     CTX --> API
     API -->|fetch + ReadableStream| BACKEND[Cloud Run Backend]
+
+    style APP fill:#1A73E8,color:#fff
+    style CTX fill:#9334E6,color:#fff
+    style HEADER fill:#E8F0FE,color:#1A73E8
+    style WELCOME fill:#E8F0FE,color:#1A73E8
+    style CHAT fill:#E8F0FE,color:#1A73E8
+    style MSG fill:#E8F0FE,color:#1A73E8
+    style INPUT fill:#E8F0FE,color:#1A73E8
+    style REASON fill:#F3E8FF,color:#7627BB
+    style FOLLOWUP fill:#E8F0FE,color:#1A73E8
+    style API fill:#34A853,color:#fff
+    style BACKEND fill:#1A73E8,color:#fff
 ```
 
 ---
@@ -460,9 +521,15 @@ flowchart TB
     CODE --> BUILD_BE --> AR --> DEPLOY_BE --> CR
     CODE --> BUILD_FE --> DIST --> DEPLOY_FE --> FH
 
-    style AR fill:#4285F4,color:#fff
-    style CR fill:#4285F4,color:#fff
-    style FH fill:#FF6D01,color:#fff
+    style CODE fill:#5F6368,color:#fff
+    style BUILD_BE fill:#F9AB00,color:#fff
+    style BUILD_FE fill:#F9AB00,color:#fff
+    style AR fill:#9334E6,color:#fff
+    style DIST fill:#E8F0FE,color:#1A73E8
+    style DEPLOY_BE fill:#34A853,color:#fff
+    style DEPLOY_FE fill:#34A853,color:#fff
+    style CR fill:#1A73E8,color:#fff
+    style FH fill:#1A73E8,color:#fff
 ```
 
 ### 6.2 Infrastructure Diagram
@@ -509,12 +576,14 @@ flowchart TB
     SA -.->|Identity| CR
     SA -.->|Permissions| VERTEX & RAG & BQ & FS
 
-    style CDN fill:#FF6D01,color:#fff
-    style CR fill:#4285F4,color:#fff
-    style VERTEX fill:#EA4335,color:#fff
-    style RAG fill:#FBBC04,color:#000
+    style USERS fill:#5F6368,color:#fff
+    style CDN fill:#1A73E8,color:#fff
+    style CR fill:#1A73E8,color:#fff
+    style VERTEX fill:#9334E6,color:#fff
+    style RAG fill:#9334E6,color:#fff
     style BQ fill:#34A853,color:#fff
-    style FS fill:#FF6D01,color:#fff
+    style FS fill:#34A853,color:#fff
+    style SA fill:#EA4335,color:#fff
 ```
 
 ### 6.3 Deployment Commands
@@ -582,8 +651,15 @@ flowchart TB
     ROLES -->|datastore.user| FS
     ROLES -->|aiplatform.user| VA
 
+    style FE fill:#1A73E8,color:#fff
     style AUTH fill:#EA4335,color:#fff
-    style SA fill:#4285F4,color:#fff
+    style ROUTES fill:#E6F4EA,color:#137333
+    style REJECT fill:#FCE8E6,color:#C5221F
+    style SA fill:#F9AB00,color:#fff
+    style ROLES fill:#E8F0FE,color:#1A73E8
+    style BQ fill:#34A853,color:#fff
+    style FS fill:#34A853,color:#fff
+    style VA fill:#9334E6,color:#fff
 ```
 
 ### 7.2 Security Controls
@@ -607,6 +683,16 @@ flowchart LR
         RATE[Rate Limiting<br/>Per User]
         LOG[PII Redaction<br/>In Logs]
     end
+
+    style SQL fill:#EA4335,color:#fff
+    style XSS fill:#EA4335,color:#fff
+    style PATH fill:#EA4335,color:#fff
+    style DRYRUN fill:#34A853,color:#fff
+    style READONLY fill:#34A853,color:#fff
+    style COST fill:#34A853,color:#fff
+    style CORS fill:#1A73E8,color:#fff
+    style RATE fill:#1A73E8,color:#fff
+    style LOG fill:#1A73E8,color:#fff
 ```
 
 | Control | Implementation |
@@ -651,10 +737,14 @@ flowchart TB
     CDN --> CR1 & CR2 & CRN
     CR1 & CR2 & CRN --> BQ & FS & VA
 
-    style CDN fill:#FF6D01,color:#fff
-    style CR1 fill:#4285F4,color:#fff
-    style CR2 fill:#4285F4,color:#fff
-    style CRN fill:#4285F4,color:#fff
+    style USERS fill:#5F6368,color:#fff
+    style CDN fill:#1A73E8,color:#fff
+    style CR1 fill:#1A73E8,color:#fff
+    style CR2 fill:#1A73E8,color:#fff
+    style CRN fill:#1A73E8,color:#fff
+    style BQ fill:#34A853,color:#fff
+    style FS fill:#34A853,color:#fff
+    style VA fill:#9334E6,color:#fff
 ```
 
 ### 8.2 Performance Characteristics
@@ -685,10 +775,12 @@ flowchart LR
     WARMUP[./deploy.sh warmup] --> MIN1
     COOLDOWN[./deploy.sh cooldown] --> MIN0
 
-    style MIN0 fill:#FFCDD2
-    style MIN1 fill:#C8E6C9
+    style MIN0 fill:#FCE8E6,color:#C5221F
+    style COLD fill:#FCE8E6,color:#C5221F
+    style MIN1 fill:#E6F4EA,color:#137333
+    style WARM fill:#E6F4EA,color:#137333
     style WARMUP fill:#34A853,color:#fff
-    style COOLDOWN fill:#EA4335,color:#fff
+    style COOLDOWN fill:#F9AB00,color:#fff
 ```
 
 **Warm-up Strategy:**
@@ -726,11 +818,12 @@ flowchart TB
     end
 
     style BQ fill:#34A853,color:#fff
-    style GEMINI fill:#EA4335,color:#fff
-    style RAG fill:#FBBC04,color:#000
-    style CR fill:#4285F4,color:#fff
-    style FS fill:#FF6D01,color:#fff
-    style FH fill:#FF6D01,color:#fff
+    style GEMINI fill:#9334E6,color:#fff
+    style RAG fill:#9334E6,color:#fff
+    style CR fill:#1A73E8,color:#fff
+    style FS fill:#34A853,color:#fff
+    style FH fill:#E6F4EA,color:#137333
+    style AR fill:#E8F0FE,color:#1A73E8
 ```
 
 ### 9.2 Service-by-Service Cost Breakdown
@@ -776,10 +869,10 @@ flowchart LR
     style S2 fill:#34A853,color:#fff
     style S3 fill:#34A853,color:#fff
     style S4 fill:#34A853,color:#fff
-    style A1 fill:#FFCDD2
-    style A2 fill:#FFCDD2
-    style A3 fill:#FFCDD2
-    style A4 fill:#FFCDD2
+    style A1 fill:#FCE8E6,color:#C5221F
+    style A2 fill:#FCE8E6,color:#C5221F
+    style A3 fill:#FCE8E6,color:#C5221F
+    style A4 fill:#FCE8E6,color:#C5221F
 ```
 
 | Strategy | Implementation | Savings |
@@ -823,7 +916,16 @@ flowchart TB
     PROMPT --> SAFE
     STREAM --> SAFE
 
-    style SAFE fill:#34A853,color:#fff
+    style DRY fill:#34A853,color:#fff
+    style MAX fill:#34A853,color:#fff
+    style ROW fill:#34A853,color:#fff
+    style MIN fill:#1A73E8,color:#fff
+    style MAXINST fill:#1A73E8,color:#fff
+    style TIMEOUT fill:#1A73E8,color:#fff
+    style LOOP fill:#9334E6,color:#fff
+    style PROMPT fill:#9334E6,color:#fff
+    style STREAM fill:#9334E6,color:#fff
+    style SAFE fill:#E6F4EA,color:#137333
 ```
 
 **Implemented Controls:**
@@ -862,10 +964,10 @@ flowchart TB
     L1 -->|Geographic Expansion| L2
     L2 -->|Enterprise SLA| L3
 
-    style NOW fill:#E3F2FD
-    style L1 fill:#BBDEFB
-    style L2 fill:#90CAF9
-    style L3 fill:#64B5F6
+    style NOW fill:#E8F0FE,color:#1A73E8
+    style L1 fill:#D2E3FC,color:#1A73E8
+    style L2 fill:#A8C7FA,color:#174EA6
+    style L3 fill:#1A73E8,color:#fff
 ```
 
 #### Scaling Configurations
@@ -930,11 +1032,11 @@ flowchart LR
     THIRD --> THIRD_COST
 
     style OUR fill:#34A853,color:#fff
-    style OUR_COST fill:#C8E6C9
-    style TRAD fill:#FFCDD2
-    style TRAD_COST fill:#FFCDD2
-    style THIRD fill:#FFF3E0
-    style THIRD_COST fill:#FFF3E0
+    style OUR_COST fill:#E6F4EA,color:#137333
+    style TRAD fill:#FCE8E6,color:#C5221F
+    style TRAD_COST fill:#FCE8E6,color:#C5221F
+    style THIRD fill:#FEF7E0,color:#B06000
+    style THIRD_COST fill:#FEF7E0,color:#B06000
 ```
 
 | Component | Our Choice | Alternative | Monthly Savings |
@@ -968,8 +1070,11 @@ flowchart TB
     PUBSUB --> SCALE
     EXPORT --> DASH
 
-    style BUDGET fill:#EA4335,color:#fff
-    style EMAIL fill:#4285F4,color:#fff
+    style BUDGET fill:#F9AB00,color:#fff
+    style EXPORT fill:#34A853,color:#fff
+    style DASH fill:#E6F4EA,color:#137333
+    style EMAIL fill:#1A73E8,color:#fff
+    style PUBSUB fill:#9334E6,color:#fff
     style SCALE fill:#34A853,color:#fff
 ```
 
