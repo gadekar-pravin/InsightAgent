@@ -16,6 +16,7 @@ This document provides a detailed technical overview of InsightAgent's architect
 6. [Deployment Architecture](#6-deployment-architecture)
 7. [Security Architecture](#7-security-architecture)
 8. [Scalability & Performance](#8-scalability--performance)
+9. [Cost & Billing](#9-cost--billing)
 
 ---
 
@@ -694,6 +695,308 @@ flowchart LR
 - Default: `min-instances=0` for cost optimization
 - Before demos: `./scripts/deploy.sh warmup` sets `min-instances=1`
 - After demos: `./scripts/deploy.sh cooldown` reverts to 0
+
+---
+
+## 9. Cost & Billing
+
+Our architecture leverages GCP's serverless and pay-per-use pricing models to minimize costs during development and low-traffic periods while providing seamless scaling for production workloads.
+
+### 9.1 Cost Model Overview
+
+```mermaid
+flowchart TB
+    subgraph "Pay-Per-Use Services"
+        direction TB
+        BQ[BigQuery<br/>$5/TB scanned]
+        GEMINI[Gemini 2.5 Flash<br/>$0.075/1M input tokens<br/>$0.30/1M output tokens]
+        RAG[RAG Engine<br/>$0.35/1000 queries]
+    end
+
+    subgraph "Pay-Per-Request + Idle"
+        direction TB
+        CR[Cloud Run<br/>$0.00002400/vCPU-sec<br/>$0.00000250/GiB-sec]
+        FS[Firestore<br/>$0.06/100K reads<br/>$0.18/100K writes]
+    end
+
+    subgraph "Fixed/Free Tier"
+        direction TB
+        FH[Firebase Hosting<br/>10GB storage free<br/>360MB/day transfer free]
+        AR[Artifact Registry<br/>$0.10/GB storage]
+    end
+
+    style BQ fill:#34A853,color:#fff
+    style GEMINI fill:#EA4335,color:#fff
+    style RAG fill:#FBBC04,color:#000
+    style CR fill:#4285F4,color:#fff
+    style FS fill:#FF6D01,color:#fff
+    style FH fill:#FF6D01,color:#fff
+```
+
+### 9.2 Service-by-Service Cost Breakdown
+
+| Service | Pricing Model | Current Config | Estimated Monthly Cost (Dev) | Estimated Monthly Cost (Prod) |
+|---------|---------------|----------------|------------------------------|-------------------------------|
+| **Cloud Run** | CPU/Memory per second | 2 vCPU, 2GB, min=0 | $0-5 (idle most time) | $50-200 (1000 req/day) |
+| **Firebase Hosting** | Storage + bandwidth | Static SPA (~5MB) | $0 (free tier) | $0-10 (within free tier) |
+| **BigQuery** | Per TB scanned | ~10MB demo dataset | $0 (free tier: 1TB/mo) | $5-50 (depends on query volume) |
+| **Firestore** | Read/Write operations | Per-user documents | $0-1 (low volume) | $10-50 (10K users) |
+| **Vertex AI Gemini** | Input/Output tokens | ~2K tokens/request | $5-20 (testing) | $100-500 (1000 req/day) |
+| **RAG Engine** | Per 1000 queries | Corpus: 5 docs | $0-5 (testing) | $35-100 (1000 req/day) |
+| **Artifact Registry** | Storage per GB | ~500MB image | $0.05 | $0.05 |
+
+**Total Estimated Cost:**
+- **Development/Demo:** $5-30/month
+- **Production (1000 requests/day):** $200-900/month
+
+### 9.3 Why Our Architecture is Cost-Effective
+
+```mermaid
+flowchart LR
+    subgraph "Cost Optimization Strategies"
+        S1[Serverless First<br/>Zero idle cost]
+        S2[Pay-Per-Query<br/>No provisioned capacity]
+        S3[Managed Services<br/>No ops overhead]
+        S4[Right-Sized Resources<br/>2 vCPU, 2GB sufficient]
+    end
+
+    subgraph "Alternatives We Avoided"
+        A1[GKE Cluster<br/>~$200/mo minimum]
+        A2[Cloud SQL<br/>~$50/mo minimum]
+        A3[Matching Engine<br/>~$100/mo minimum]
+        A4[Self-hosted LLM<br/>GPU: $500+/mo]
+    end
+
+    S1 -->|vs| A1
+    S2 -->|vs| A2
+    S2 -->|vs| A3
+    S3 -->|vs| A4
+
+    style S1 fill:#34A853,color:#fff
+    style S2 fill:#34A853,color:#fff
+    style S3 fill:#34A853,color:#fff
+    style S4 fill:#34A853,color:#fff
+    style A1 fill:#FFCDD2
+    style A2 fill:#FFCDD2
+    style A3 fill:#FFCDD2
+    style A4 fill:#FFCDD2
+```
+
+| Strategy | Implementation | Savings |
+|----------|----------------|---------|
+| **Serverless Compute** | Cloud Run with min-instances=0 | No cost when idle (vs $200+/mo for GKE) |
+| **Managed Vector Store** | Vertex AI RAG Engine | No infrastructure (vs $100+/mo for Matching Engine) |
+| **Pay-Per-Query Analytics** | BigQuery on-demand | No provisioned slots (vs $2000+/mo for flat-rate) |
+| **Flash Model** | Gemini 2.5 Flash vs Pro | 10x cheaper per token |
+| **Efficient Embedding** | RAG Engine handles embeddings | No separate Embedding API calls |
+| **CDN for Frontend** | Firebase Hosting free tier | Zero frontend hosting cost |
+
+### 9.4 Cost Control Mechanisms
+
+```mermaid
+flowchart TB
+    subgraph "Query Cost Controls"
+        DRY[BigQuery Dry-Run<br/>Estimate before execute]
+        MAX[maximum_bytes_billed<br/>Hard limit per query]
+        ROW[Row Limit: 100<br/>Prevent large results]
+    end
+
+    subgraph "Compute Controls"
+        MIN[min-instances: 0<br/>Scale to zero]
+        MAXINST[max-instances: 5<br/>Cap scaling]
+        TIMEOUT[Timeout: 300s<br/>Kill runaway requests]
+    end
+
+    subgraph "Token Controls"
+        LOOP[Max 10 iterations<br/>Cap agentic loops]
+        PROMPT[Efficient prompts<br/>Minimize input tokens]
+        STREAM[SSE Streaming<br/>Early termination]
+    end
+
+    DRY --> SAFE[Cost-Safe<br/>Operations]
+    MAX --> SAFE
+    ROW --> SAFE
+    MIN --> SAFE
+    MAXINST --> SAFE
+    TIMEOUT --> SAFE
+    LOOP --> SAFE
+    PROMPT --> SAFE
+    STREAM --> SAFE
+
+    style SAFE fill:#34A853,color:#fff
+```
+
+**Implemented Controls:**
+
+| Control | Location | Purpose |
+|---------|----------|---------|
+| `maximum_bytes_billed` | `bigquery_service.py` | Reject queries that would scan >100MB |
+| Row limit (100) | `bigquery_service.py` | Cap returned rows |
+| Dry-run validation | `bigquery_service.py` | Estimate cost before execution |
+| `max-instances: 5` | Cloud Run config | Prevent runaway scaling |
+| `min-instances: 0` | Cloud Run config | Scale to zero when idle |
+| Max 10 iterations | `insight_agent.py` | Cap agentic tool loops |
+| Request timeout | Cloud Run (300s) | Kill long-running requests |
+
+### 9.5 Production Scaling Opportunities
+
+```mermaid
+flowchart TB
+    subgraph "Current State"
+        NOW[Development Config<br/>min=0, max=5<br/>~$30/mo]
+    end
+
+    subgraph "Scale Level 1: 10K Users"
+        L1[Warm Instances<br/>min=2, max=10<br/>~$500/mo]
+    end
+
+    subgraph "Scale Level 2: 100K Users"
+        L2[Multi-Region<br/>Load Balancer<br/>~$2000/mo]
+    end
+
+    subgraph "Scale Level 3: Enterprise"
+        L3[Reserved Capacity<br/>Committed Use Discounts<br/>Flat-Rate BigQuery<br/>~$5000+/mo]
+    end
+
+    NOW -->|Traffic Increase| L1
+    L1 -->|Geographic Expansion| L2
+    L2 -->|Enterprise SLA| L3
+
+    style NOW fill:#E3F2FD
+    style L1 fill:#BBDEFB
+    style L2 fill:#90CAF9
+    style L3 fill:#64B5F6
+```
+
+#### Scaling Configurations
+
+| Scale Level | Users | Config Changes | Estimated Cost |
+|-------------|-------|----------------|----------------|
+| **Development** | <100 | Current (min=0, max=5) | $30/mo |
+| **Production Small** | 1K-10K | min=2, max=20, 4GB RAM | $300-800/mo |
+| **Production Medium** | 10K-100K | Multi-region, Load Balancer, BQ slots | $1500-3000/mo |
+| **Enterprise** | 100K+ | Committed Use, Flat-Rate BQ, Support | $5000+/mo |
+
+#### Production Scaling Playbook
+
+**Level 1: Warm Instances (10K users)**
+```bash
+# Update Cloud Run for consistent latency
+gcloud run services update insightagent \
+  --min-instances=2 \
+  --max-instances=20 \
+  --memory=4Gi \
+  --cpu=4
+```
+
+**Level 2: Multi-Region (100K users)**
+```bash
+# Deploy to multiple regions
+gcloud run deploy insightagent --region=us-central1
+gcloud run deploy insightagent --region=europe-west1
+
+# Add Global Load Balancer
+gcloud compute backend-services create insightagent-backend \
+  --global \
+  --load-balancing-scheme=EXTERNAL_MANAGED
+```
+
+**Level 3: Enterprise Discounts**
+- **Committed Use Discounts (CUD):** 1-3 year commitments for 30-50% savings on Cloud Run
+- **BigQuery Flat-Rate:** Predictable pricing at $2000/mo for 100 slots
+- **Vertex AI Provisioned Throughput:** Reserved capacity for Gemini API
+
+### 9.6 Cost Comparison: Our Stack vs Alternatives
+
+```mermaid
+flowchart LR
+    subgraph "InsightAgent Stack"
+        OUR[Cloud Run + Firebase<br/>BigQuery + Firestore<br/>Vertex AI RAG + Gemini]
+        OUR_COST[$200-500/mo<br/>at 1K req/day]
+    end
+
+    subgraph "Traditional Stack"
+        TRAD[GKE + Cloud SQL<br/>Elasticsearch<br/>Self-hosted Embeddings]
+        TRAD_COST[$1500-3000/mo<br/>at 1K req/day]
+    end
+
+    subgraph "Third-Party Stack"
+        THIRD[AWS Lambda + RDS<br/>Pinecone<br/>OpenAI API]
+        THIRD_COST[$800-1500/mo<br/>at 1K req/day]
+    end
+
+    OUR --> OUR_COST
+    TRAD --> TRAD_COST
+    THIRD --> THIRD_COST
+
+    style OUR fill:#34A853,color:#fff
+    style OUR_COST fill:#C8E6C9
+    style TRAD fill:#FFCDD2
+    style TRAD_COST fill:#FFCDD2
+    style THIRD fill:#FFF3E0
+    style THIRD_COST fill:#FFF3E0
+```
+
+| Component | Our Choice | Alternative | Monthly Savings |
+|-----------|------------|-------------|-----------------|
+| **Compute** | Cloud Run ($50-200) | GKE ($200-500) | $150-300 |
+| **Vector DB** | RAG Engine ($35-100) | Pinecone ($70+) / Matching Engine ($100+) | $35-65 |
+| **Database** | BigQuery + Firestore ($15-100) | Cloud SQL + Redis ($100-200) | $85-100 |
+| **LLM** | Gemini Flash ($100-500) | GPT-4 Turbo ($300-1500) | $200-1000 |
+| **Hosting** | Firebase ($0) | S3 + CloudFront ($10-30) | $10-30 |
+
+**Total Savings vs Traditional: 60-80%**
+
+### 9.7 Billing Monitoring & Alerts
+
+```mermaid
+flowchart TB
+    subgraph "GCP Billing"
+        BUDGET[Budget Alerts<br/>$50, $100, $500 thresholds]
+        EXPORT[Billing Export<br/>to BigQuery]
+        DASH[Cost Dashboard<br/>Per-service breakdown]
+    end
+
+    subgraph "Actions"
+        EMAIL[Email Alerts]
+        PUBSUB[Pub/Sub Trigger]
+        SCALE[Auto Scale-Down]
+    end
+
+    BUDGET --> EMAIL
+    BUDGET --> PUBSUB
+    PUBSUB --> SCALE
+    EXPORT --> DASH
+
+    style BUDGET fill:#EA4335,color:#fff
+    style EMAIL fill:#4285F4,color:#fff
+    style SCALE fill:#34A853,color:#fff
+```
+
+**Recommended Budget Alerts:**
+
+```bash
+# Create budget with alerts at 50%, 90%, 100%
+gcloud billing budgets create \
+  --billing-account=BILLING_ACCOUNT_ID \
+  --display-name="InsightAgent Monthly" \
+  --budget-amount=500 \
+  --threshold-rule=percent=0.5 \
+  --threshold-rule=percent=0.9 \
+  --threshold-rule=percent=1.0
+```
+
+### 9.8 Free Tier Utilization
+
+| Service | Free Tier Allowance | Our Usage | Status |
+|---------|---------------------|-----------|--------|
+| **BigQuery** | 1 TB queries/month | ~1-10 GB | Within free tier |
+| **Firestore** | 50K reads, 20K writes/day | ~1K ops/day | Within free tier |
+| **Cloud Run** | 2M requests/month, 360K vCPU-sec | Dev: <10K req | Within free tier |
+| **Firebase Hosting** | 10GB storage, 360MB/day transfer | ~5MB SPA | Within free tier |
+| **Artifact Registry** | 500MB storage | ~500MB image | At limit |
+
+**Development costs are near-zero by staying within GCP free tiers.**
 
 ---
 
