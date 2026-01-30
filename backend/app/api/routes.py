@@ -89,6 +89,10 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
     """
     firestore = get_firestore_service()
 
+    # Get conversation history for context
+    session_history = await firestore.get_session_history(request.user_id, request.session_id)
+    conversation_history = session_history.get("messages", []) if "error" not in session_history else []
+
     # Save user message to history
     await firestore.add_message(
         user_id=request.user_id,
@@ -100,11 +104,12 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
     # Get user memory for system prompt injection
     memory_summary = await firestore.get_user_memory_summary(request.user_id)
 
-    # Create agent instance
+    # Create agent instance with conversation history
     agent = InsightAgent(
         user_id=request.user_id,
         session_id=request.session_id,
         memory_summary=memory_summary,
+        conversation_history=conversation_history,
     )
 
     async def generate_sse() -> AsyncGenerator[str, None]:

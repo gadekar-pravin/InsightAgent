@@ -35,7 +35,13 @@ class InsightAgent:
     combining BigQuery data, knowledge base context, and persistent memory.
     """
 
-    def __init__(self, user_id: str, session_id: str, memory_summary: str | None = None):
+    def __init__(
+        self,
+        user_id: str,
+        session_id: str,
+        memory_summary: str | None = None,
+        conversation_history: list[dict] | None = None,
+    ):
         """
         Initialize the InsightAgent.
 
@@ -43,6 +49,7 @@ class InsightAgent:
             user_id: The user's ID for scoping data access
             session_id: The current session ID
             memory_summary: Optional summary of user's past interactions
+            conversation_history: Optional list of previous messages in the session
         """
         self.user_id = user_id
         self.session_id = session_id
@@ -51,8 +58,8 @@ class InsightAgent:
         # Build system prompt with optional memory context
         self.system_prompt = build_system_prompt(memory_summary)
 
-        # Conversation history for multi-turn
-        self._history: list[types.Content] = []
+        # Conversation history for multi-turn - initialize from previous messages
+        self._history: list[types.Content] = self._load_conversation_history(conversation_history)
 
         # Client will be initialized lazily
         self._client: genai.Client | None = None
@@ -64,6 +71,43 @@ class InsightAgent:
             "get_conversation_context": get_conversation_context,
             "save_to_memory": save_to_memory,
         }
+
+    def _load_conversation_history(
+        self,
+        conversation_history: list[dict] | None,
+    ) -> list[types.Content]:
+        """
+        Convert conversation history from Firestore format to Gemini Content format.
+
+        Args:
+            conversation_history: List of message dicts with 'role' and 'content' keys
+
+        Returns:
+            List of types.Content objects for Gemini
+        """
+        if not conversation_history:
+            return []
+
+        history = []
+        for msg in conversation_history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+
+            # Skip empty messages
+            if not content:
+                continue
+
+            # Gemini uses "user" and "model" roles
+            gemini_role = "model" if role == "assistant" else "user"
+
+            history.append(
+                types.Content(
+                    role=gemini_role,
+                    parts=[types.Part.from_text(text=content)],
+                )
+            )
+
+        return history
 
     @property
     def client(self) -> genai.Client:

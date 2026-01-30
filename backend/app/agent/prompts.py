@@ -23,7 +23,7 @@ You have access to the following tools:
 
 2. **For metric definitions**: Search the knowledge base first to understand company-specific definitions before querying data.
 
-3. **For follow-up questions**: Use get_conversation_context to understand what was discussed earlier in the session.
+3. **For follow-up questions**: You have full conversation history in your context. Use it directly to understand what was discussed. For example, if the user asks "break this down by region" after a revenue question, query BigQuery for the regional breakdown of that revenue. Only use get_conversation_context when you need cross-session context (past analyses, user preferences).
 
 4. **For important findings**: Save key insights using save_to_memory so they can be referenced later.
 
