@@ -82,9 +82,18 @@ deploy_frontend() {
 
     cd "${PROJECT_ROOT}/frontend"
 
-    # Get API key from backend .env or environment
+    # Get API key from environment, Cloud Run, or backend .env (in that order)
     local api_key="${DEMO_API_KEY:-}"
+    if [ -z "${api_key}" ]; then
+        api_key=$(
+            gcloud run services describe "${BACKEND_SERVICE}" \
+                --project="${PROJECT_ID}" \
+                --region="${REGION}" \
+                --format="value(spec.template.spec.containers[0].env[?name='DEMO_API_KEY'].value)" 2>/dev/null || true
+        )
+    fi
     if [ -z "${api_key}" ] && [ -f "${PROJECT_ROOT}/backend/.env" ]; then
+        print_warning "Falling back to ${PROJECT_ROOT}/backend/.env for DEMO_API_KEY (use DEMO_API_KEY env var for production deploys)."
         api_key=$(grep -E "^DEMO_API_KEY=" "${PROJECT_ROOT}/backend/.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
     fi
 
