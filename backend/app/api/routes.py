@@ -304,10 +304,12 @@ async def get_history(session_id: str, user_id: str) -> ConversationHistory:
     messages = []
     for msg in history.get("messages", []):
         messages.append({
+            "message_id": msg.get("message_id"),
             "role": msg["role"],
             "content": msg["content"],
             "timestamp": dt.fromisoformat(msg["timestamp"].replace("Z", "+00:00")),
             "reasoning_trace": msg.get("reasoning_trace"),
+            "metadata": msg.get("metadata"),
         })
 
     created_at = history.get("created_at", "")

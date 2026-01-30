@@ -67,6 +67,8 @@ export interface MemoryEvent {
 export interface DoneEvent {
   seq: number;
   suggested_followups: string[];
+  tools_used?: string[];
+  gemini_usage?: GeminiUsageSummary;
 }
 
 export interface ErrorEvent {
@@ -79,10 +81,12 @@ export interface ErrorEvent {
 // =============================================================================
 
 export interface HistoryMessage {
+  message_id?: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
   reasoning_trace?: ReasoningTrace[];
+  metadata?: MessageMetadata;
 }
 
 export interface ConversationHistory {
@@ -91,6 +95,56 @@ export interface ConversationHistory {
   messages: HistoryMessage[];
   created_at: string;
   last_updated: string;
+}
+
+// =============================================================================
+// Gemini Usage Types
+// =============================================================================
+
+export interface GeminiUsageCall {
+  iteration: number;
+  model: string;
+  model_version?: string | null;
+  response_id?: string | null;
+  latency_ms: number;
+  status: 'ok' | 'error';
+  error?: string | null;
+  usage?: {
+    prompt_token_count?: number | null;
+    candidates_token_count?: number | null;
+    total_token_count?: number | null;
+    thoughts_token_count?: number | null;
+    cached_content_token_count?: number | null;
+    tool_use_prompt_token_count?: number | null;
+  };
+}
+
+export interface GeminiUsageSummary {
+  calls: number;
+  total_latency_ms: number;
+  prompt_token_count?: number | null;
+  candidates_token_count?: number | null;
+  total_token_count?: number | null;
+  thoughts_token_count?: number | null;
+  cached_content_token_count?: number | null;
+  tool_use_prompt_token_count?: number | null;
+  per_call: GeminiUsageCall[];
+}
+
+export interface GeminiSessionTotals {
+  calls: number;
+  total_latency_ms: number;
+  prompt_token_count: number | null;
+  candidates_token_count: number | null;
+  total_token_count: number | null;
+  thoughts_token_count: number | null;
+  cached_content_token_count: number | null;
+  tool_use_prompt_token_count: number | null;
+}
+
+export interface MessageMetadata {
+  gemini_usage?: GeminiUsageSummary;
+  [key: string]: unknown;
 }
 
 // =============================================================================

@@ -659,10 +659,12 @@ class FirestoreService:
             for doc in message_docs:
                 msg_data = doc.to_dict()
                 messages.append({
+                    "message_id": getattr(doc, "id", None),
                     "role": msg_data.get("role"),
                     "content": msg_data.get("content"),
                     "timestamp": msg_data.get("timestamp"),
                     "reasoning_trace": msg_data.get("reasoning_trace"),
+                    "metadata": msg_data.get("metadata"),
                 })
 
             return {

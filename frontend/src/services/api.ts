@@ -195,9 +195,12 @@ export function sendMessage(
 // =============================================================================
 
 export async function getConversationHistory(
-  sessionId: string
+  sessionId: string,
+  userId: string
 ): Promise<ConversationHistory> {
-  return apiFetch<ConversationHistory>(`/chat/history/${sessionId}`);
+  return apiFetch<ConversationHistory>(
+    `/chat/history/${sessionId}?user_id=${encodeURIComponent(userId)}`
+  );
 }
 
 // =============================================================================

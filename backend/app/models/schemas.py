@@ -122,10 +122,12 @@ class DoneEvent(BaseModel):
 
 class HistoryMessage(BaseModel):
     """A message in conversation history."""
+    message_id: str | None = None
     role: Literal["user", "assistant"]
     content: str
     timestamp: datetime
     reasoning_trace: list[dict] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class ConversationHistory(BaseModel):

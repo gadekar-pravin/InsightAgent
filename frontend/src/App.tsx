@@ -13,6 +13,7 @@ function AppContent() {
     isLoading,
     currentReasoningTraces,
     hasMemory,
+    geminiTotals,
     initSession,
     sendChatMessage,
     error,
@@ -30,7 +31,11 @@ function AppContent() {
     <div className="flex h-screen overflow-hidden bg-background-light dark:bg-background-dark text-[#0d141b] dark:text-slate-50 font-display">
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <Header hasMemory={hasMemory} memorySavedCount={memorySavedCount} />
+        <Header
+          hasMemory={hasMemory}
+          memorySavedCount={memorySavedCount}
+          geminiTotals={geminiTotals}
+        />
 
         {/* Error banner */}
         {error && (
