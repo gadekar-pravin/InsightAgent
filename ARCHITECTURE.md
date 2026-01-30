@@ -891,7 +891,7 @@ flowchart TB
     subgraph "Query Cost Controls"
         DRY[BigQuery Dry-Run<br/>Estimate before execute]
         MAX[maximum_bytes_billed<br/>Hard limit per query]
-        ROW[Row Limit: 100<br/>Prevent large results]
+        ROW[Row Limit: 1000<br/>Prevent large results]
     end
 
     subgraph "Compute Controls"
@@ -939,6 +939,13 @@ flowchart TB
 | `min-instances: 0` | Cloud Run config | Scale to zero when idle |
 | Max 10 iterations | `insight_agent.py` | Cap agentic tool loops |
 | Request timeout | Cloud Run (300s) | Kill long-running requests |
+
+> **Planned for Production Hardening:**
+> For production deployments with stricter cost controls, consider tightening the following limits:
+> - `max_query_bytes`: Reduce from 10GB to 100MB to reject expensive analytical queries
+> - `max_result_rows`: Reduce from 1000 to 100 to limit data transfer costs
+> - Add query complexity analysis to reject expensive JOIN patterns
+> - Implement per-user query quotas with daily/hourly limits
 
 ### 9.5 Production Scaling Opportunities
 
@@ -1090,6 +1097,13 @@ gcloud billing budgets create \
   --threshold-rule=percent=0.9 \
   --threshold-rule=percent=1.0
 ```
+
+> **Planned for Production:**
+> For production deployments, consider setting up multiple budgets with absolute dollar thresholds:
+> - **Warning budget:** $50 threshold for early alerts during development
+> - **Caution budget:** $100 threshold to catch unexpected usage spikes
+> - **Critical budget:** $500 threshold with Pub/Sub trigger to auto-scale down or disable non-essential services
+> - Configure Pub/Sub-triggered Cloud Functions to automatically reduce `max-instances` when critical threshold is reached
 
 ### 9.8 Free Tier Utilization
 
