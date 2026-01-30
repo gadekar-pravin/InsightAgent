@@ -46,7 +46,7 @@ export function WelcomeScreen({ userName = 'there', onQuestionClick }: WelcomeSc
       </div>
 
       {/* Question Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {SUGGESTED_QUESTIONS.map((q) => (
           <QuestionCard
             key={q.title}

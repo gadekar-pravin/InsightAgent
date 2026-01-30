@@ -48,7 +48,7 @@ export function ChatArea({
       )}
 
       {/* Footer with chips and input */}
-      <div className="p-4 bg-white dark:bg-[#16222c] border-t border-slate-200 dark:border-slate-800 space-y-3 shrink-0">
+      <div className="p-4 pb-6 bg-white dark:bg-[#16222c] border-t border-slate-200 dark:border-slate-800 space-y-3 shrink-0">
         {/* Suggested followups */}
         {suggestedFollowups.length > 0 && (
           <SuggestedFollowups
@@ -60,13 +60,20 @@ export function ChatArea({
 
         {/* Message input */}
         <div className="max-w-[800px] mx-auto">
+          {/* Helper text for welcome screen */}
+          {!hasMessages && (
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-3 flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-base">keyboard</span>
+              Or type your own question below
+            </p>
+          )}
           <ChatInput
             onSend={onSendMessage}
             isLoading={isLoading}
             placeholder={
               hasMessages
                 ? 'Ask a follow-up question...'
-                : 'Ask InsightAgent a question about your sales data...'
+                : 'Ask anything about your business data...'
             }
           />
         </div>
