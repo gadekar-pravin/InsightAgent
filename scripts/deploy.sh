@@ -130,9 +130,9 @@ EOF
     print_status "Building frontend..."
     npm run build >&2
 
-    # Deploy to Firebase Hosting
-    print_status "Deploying to Firebase Hosting..."
-    firebase deploy --only hosting --project="${FIREBASE_PROJECT_ID}" >&2
+    # Deploy to Firebase Hosting (use --only hosting:SITE to override firebase.json site)
+    print_status "Deploying to Firebase Hosting site: ${FIREBASE_SITE}..."
+    firebase deploy --only "hosting:${FIREBASE_SITE}" --project="${FIREBASE_PROJECT_ID}" >&2
 
     print_status "Frontend deployed: ${FRONTEND_URL}"
     echo "${FRONTEND_URL}"
