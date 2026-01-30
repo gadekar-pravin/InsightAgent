@@ -29,6 +29,9 @@ function ReasoningTraceItem({ trace, isLast }: { trace: ReasoningTrace; isLast: 
   const isError = trace.status === 'error';
   const isComplete = trace.status === 'completed';
 
+  // Check if input looks like SQL
+  const isSqlInput = trace.tool_name === 'query_bigquery' && trace.input;
+
   return (
     <div className="relative flex gap-4">
       {/* Connector line */}
@@ -36,7 +39,7 @@ function ReasoningTraceItem({ trace, isLast }: { trace: ReasoningTrace; isLast: 
 
       {/* Status icon */}
       <div
-        className={`relative z-10 size-6 rounded-full flex items-center justify-center ${
+        className={`relative z-10 size-6 rounded-full flex items-center justify-center shrink-0 ${
           isError
             ? 'bg-red-500 text-white'
             : isComplete
@@ -56,7 +59,7 @@ function ReasoningTraceItem({ trace, isLast }: { trace: ReasoningTrace; isLast: 
       </div>
 
       {/* Content */}
-      <div className="flex-1 pb-6">
+      <div className="flex-1 pb-6 min-w-0">
         <h4
           className={`text-xs font-bold ${
             isActive
@@ -69,25 +72,46 @@ function ReasoningTraceItem({ trace, isLast }: { trace: ReasoningTrace; isLast: 
           <span className="material-symbols-outlined text-sm mr-1 align-middle">
             {icon}
           </span>
-          {label}...
+          {label}
         </h4>
 
-        {/* Summary or error */}
-        {trace.summary && (
-          <p className="text-[11px] text-slate-500 mt-1 font-mono truncate cursor-pointer hover:text-clip">
-            {trace.summary}
-          </p>
+        {/* Input display - SQL or search query */}
+        {trace.input && (
+          <div className={`mt-2 ${isSqlInput ? 'bg-slate-900 dark:bg-slate-950' : 'bg-slate-100 dark:bg-slate-800'} rounded-md p-2 overflow-hidden`}>
+            <pre className={`text-[10px] font-mono whitespace-pre-wrap break-all ${isSqlInput ? 'text-green-400' : 'text-slate-600 dark:text-slate-300'}`}>
+              {trace.input}
+            </pre>
+          </div>
         )}
+
+        {/* Summary on completion */}
+        {trace.summary && isComplete && (
+          <div className="mt-2 flex items-start gap-1.5">
+            <span className="material-symbols-outlined text-green-500 text-sm shrink-0">
+              arrow_forward
+            </span>
+            <p className="text-[11px] text-slate-600 dark:text-slate-400">
+              {trace.summary}
+            </p>
+          </div>
+        )}
+
+        {/* Error message */}
         {trace.error && (
-          <p className="text-[11px] text-red-500 mt-1">{trace.error}</p>
+          <div className="mt-2 flex items-start gap-1.5">
+            <span className="material-symbols-outlined text-red-500 text-sm shrink-0">
+              error
+            </span>
+            <p className="text-[11px] text-red-500">{trace.error}</p>
+          </div>
         )}
 
         {/* Progress bar for active */}
         {isActive && (
-          <div className="mt-2 w-full bg-slate-100 dark:bg-slate-800 h-1 rounded-full overflow-hidden">
+          <div className="mt-2 w-full bg-slate-200 dark:bg-slate-700 h-1 rounded-full overflow-hidden">
             <div
-              className="bg-primary h-full animate-pulse"
-              style={{ width: '60%' }}
+              className="bg-primary h-full rounded-full animate-[pulse_1.5s_ease-in-out_infinite]"
+              style={{ width: '70%' }}
             />
           </div>
         )}

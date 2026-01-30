@@ -101,7 +101,9 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
 
     case 'UPDATE_REASONING_TRACE': {
       const traces = state.currentReasoningTraces.map((t) =>
-        t.trace_id === action.payload.trace_id ? action.payload : t
+        t.trace_id === action.payload.trace_id
+          ? { ...t, ...action.payload }  // Merge to preserve input from started event
+          : t
       );
       return { ...state, currentReasoningTraces: traces };
     }
@@ -232,6 +234,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 trace_id: event.trace_id,
                 tool_name: event.tool_name,
                 status: event.status,
+                input: event.input,
                 timestamp: Date.now(),
               },
             });
@@ -242,6 +245,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 trace_id: event.trace_id,
                 tool_name: event.tool_name,
                 status: event.status,
+                input: event.input,
                 summary: event.summary,
                 error: event.error,
                 timestamp: Date.now(),

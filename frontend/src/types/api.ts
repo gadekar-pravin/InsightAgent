@@ -47,6 +47,7 @@ export interface ReasoningEvent {
   trace_id: string;
   tool_name: string;
   status: 'started' | 'completed' | 'error';
+  input?: string;
   summary?: string;
   error?: string;
 }
@@ -126,6 +127,7 @@ export interface ReasoningTrace {
   trace_id: string;
   tool_name: string;
   status: 'started' | 'completed' | 'error';
+  input?: string;
   summary?: string;
   error?: string;
   timestamp: number;

@@ -290,8 +290,12 @@ class InsightAgent:
 
                         for fc in function_calls:
                             trace_id = str(uuid.uuid4())[:8]
+                            args = dict(fc.args) if fc.args else {}
 
-                            # Emit tool start event
+                            # Build input display for the trace
+                            input_display = self._format_tool_input(fc.name, args)
+
+                            # Emit tool start event with input details
                             yield {
                                 "type": "reasoning",
                                 "seq": next_seq(),
@@ -299,13 +303,17 @@ class InsightAgent:
                                     "trace_id": trace_id,
                                     "tool_name": fc.name,
                                     "status": "started",
+                                    "input": input_display,
                                 },
                             }
 
                             # Execute the tool
                             result, event_data = await self._execute_tool(fc)
 
-                            # Emit tool complete event
+                            # Build summary for completed trace
+                            summary = self._format_tool_summary(fc.name, result)
+
+                            # Emit tool complete event with summary
                             yield {
                                 "type": "reasoning",
                                 "seq": next_seq(),
@@ -313,6 +321,7 @@ class InsightAgent:
                                     "trace_id": trace_id,
                                     "tool_name": fc.name,
                                     "status": "completed",
+                                    "summary": summary,
                                     **event_data,
                                 },
                             }
@@ -420,6 +429,93 @@ class InsightAgent:
                 ],
             },
         }
+
+    def _format_tool_input(self, tool_name: str, args: dict) -> str | None:
+        """
+        Format tool input for display in reasoning trace.
+
+        Args:
+            tool_name: Name of the tool being called
+            args: Arguments passed to the tool
+
+        Returns:
+            Formatted input string for display, or None if not applicable
+        """
+        if tool_name == "query_bigquery":
+            sql = args.get("sql", "")
+            # Truncate very long queries but keep them readable
+            if len(sql) > 500:
+                sql = sql[:500] + "..."
+            return sql
+        elif tool_name == "search_knowledge_base":
+            query = args.get("query", "")
+            top_k = args.get("top_k", 3)
+            return f'"{query}" (top {top_k} results)'
+        elif tool_name == "get_conversation_context":
+            return "Loading previous session context..."
+        elif tool_name == "save_to_memory":
+            memory_type = args.get("memory_type", "finding")
+            key = args.get("key", "")
+            return f'Saving {memory_type}: "{key}"'
+        return None
+
+    def _format_tool_summary(self, tool_name: str, result: dict) -> str:
+        """
+        Format tool result for display in reasoning trace.
+
+        Args:
+            tool_name: Name of the tool that was called
+            result: Result dictionary from tool execution
+
+        Returns:
+            Formatted summary string for display
+        """
+        if not result.get("success", False):
+            error = result.get("error", "Unknown error")
+            return f"Error: {error}"
+
+        if tool_name == "query_bigquery":
+            row_count = result.get("row_count", 0)
+            columns = result.get("columns", [])
+            # Show a preview of the data if available
+            data = result.get("data", [])
+            if data and len(data) > 0:
+                # Format first row as preview
+                first_row = data[0]
+                preview_parts = []
+                for col in columns[:3]:  # Show first 3 columns
+                    val = first_row.get(col, "")
+                    # Format numbers nicely
+                    if isinstance(val, (int, float)):
+                        if val >= 1000000:
+                            val = f"${val/1000000:.1f}M"
+                        elif val >= 1000:
+                            val = f"${val/1000:.1f}K"
+                    preview_parts.append(f"{col}: {val}")
+                preview = ", ".join(preview_parts)
+                return f"Found {row_count} rows. Sample: {preview}"
+            return f"Found {row_count} rows"
+
+        elif tool_name == "search_knowledge_base":
+            results = result.get("results", [])
+            if results:
+                sources = [r.get("source", "unknown") for r in results[:3]]
+                source_list = ", ".join(sources)
+                return f"Found {len(results)} relevant documents: {source_list}"
+            return "No matching documents found"
+
+        elif tool_name == "get_conversation_context":
+            context = result.get("context", {})
+            if context:
+                return f"Loaded context from previous session"
+            return "No previous context found"
+
+        elif tool_name == "save_to_memory":
+            memory_type = result.get("memory_type", "finding")
+            key = result.get("key", "")
+            return f'Saved {memory_type}: "{key}"'
+
+        return "Completed"
 
     def _generate_followups(
         self,
