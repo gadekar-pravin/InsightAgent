@@ -220,6 +220,18 @@ Current Configuration:
 EOF
 }
 
+# Helper to get backend URL
+get_backend_url() {
+    if [ -n "${BACKEND_URL:-}" ]; then
+        echo "${BACKEND_URL}"
+    else
+        gcloud run services describe "${BACKEND_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format="value(status.url)" 2>/dev/null || echo ""
+    fi
+}
+
 # Main
 main() {
     local command="${1:-all}"
@@ -233,11 +245,13 @@ main() {
             print_status "Starting full deployment..."
             deploy_backend >/dev/null
             deploy_frontend >/dev/null
+            local backend_url
+            backend_url=$(get_backend_url)
             print_status "Deployment complete!"
             echo ""
             echo "Frontend: ${FRONTEND_URL}"
-            echo "Backend:  ${BACKEND_URL}"
-            echo "API Docs: ${BACKEND_URL}/docs"
+            echo "Backend:  ${backend_url}"
+            echo "API Docs: ${backend_url}/docs"
             ;;
         backend)
             deploy_backend
