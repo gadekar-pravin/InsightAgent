@@ -35,49 +35,51 @@ export function ChatArea({
     <main className="flex-1 flex flex-col relative overflow-hidden bg-slate-50 dark:bg-slate-900/20">
       {/* Messages area */}
       {hasMessages ? (
-        <div className="flex-1 overflow-y-auto p-8 space-y-8 scroll-smooth">
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
+        <>
+          <div className="flex-1 overflow-y-auto p-8 space-y-8 scroll-smooth">
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Footer with chips and input - only for messages view */}
+          <div className="p-4 pb-6 bg-white dark:bg-[#16222c] border-t border-slate-200 dark:border-slate-800 space-y-3 shrink-0">
+            {suggestedFollowups.length > 0 && (
+              <SuggestedFollowups
+                followups={suggestedFollowups}
+                onSelect={onSendMessage}
+                disabled={isLoading}
+              />
+            )}
+            <div className="max-w-[800px] mx-auto">
+              <ChatInput
+                onSend={onSendMessage}
+                isLoading={isLoading}
+                placeholder="Ask a follow-up question..."
+              />
+            </div>
+          </div>
+        </>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        /* Welcome screen with integrated input */
+        <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto px-4 py-8">
           <WelcomeScreen onQuestionClick={onSendMessage} />
-        </div>
-      )}
 
-      {/* Footer with chips and input */}
-      <div className="p-4 pb-6 bg-white dark:bg-[#16222c] border-t border-slate-200 dark:border-slate-800 space-y-3 shrink-0">
-        {/* Suggested followups */}
-        {suggestedFollowups.length > 0 && (
-          <SuggestedFollowups
-            followups={suggestedFollowups}
-            onSelect={onSendMessage}
-            disabled={isLoading}
-          />
-        )}
-
-        {/* Message input */}
-        <div className="max-w-[800px] mx-auto">
-          {/* Helper text for welcome screen */}
-          {!hasMessages && (
+          {/* Input integrated into welcome flow */}
+          <div className="w-full max-w-[700px] px-6">
             <p className="text-center text-sm text-slate-500 dark:text-slate-400 mb-3 flex items-center justify-center gap-2">
               <span className="material-symbols-outlined text-base">keyboard</span>
-              Or type your own question below
+              Or type your own question
             </p>
-          )}
-          <ChatInput
-            onSend={onSendMessage}
-            isLoading={isLoading}
-            placeholder={
-              hasMessages
-                ? 'Ask a follow-up question...'
-                : 'Ask anything about your business data...'
-            }
-          />
+            <ChatInput
+              onSend={onSendMessage}
+              isLoading={isLoading}
+              placeholder="Ask anything about your business data..."
+            />
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
