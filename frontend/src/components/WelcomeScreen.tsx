@@ -21,14 +21,14 @@ const SUGGESTED_QUESTIONS = [
     description: 'See sales performance by territory',
   },
   {
-    icon: 'military_tech',
-    title: 'Who are the top 5 performing reps?',
-    description: 'Rank team by deal volume and closing rate',
+    icon: 'trending_down',
+    title: 'Why did we miss our Q4 target?',
+    description: 'Multi-source analysis with business context',
   },
   {
-    icon: 'warning',
-    title: 'Identify churn risks this month',
-    description: 'Predictive customer analysis and health scores',
+    icon: 'psychology',
+    title: 'What do you remember about me?',
+    description: 'Test persistent memory across sessions',
   },
 ];
 
