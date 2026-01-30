@@ -45,7 +45,7 @@ interface ChatState {
 
 type ChatAction =
   | { type: 'SET_SESSION'; payload: SessionResponse }
-  | { type: 'RESUME_SESSION'; payload: { sessionId: string; userId: string } }
+  | { type: 'RESUME_SESSION'; payload: { sessionId: string; userId: string; hasMemory: boolean } }
   | { type: 'LOAD_HISTORY'; payload: { messages: ChatMessage[]; geminiTotals: GeminiSessionTotals; seenGeminiCallKeys: Set<string> } }
   | { type: 'ADD_USER_MESSAGE'; payload: ChatMessage }
   | { type: 'ADD_ASSISTANT_MESSAGE'; payload: ChatMessage }
@@ -76,7 +76,11 @@ const EMPTY_GEMINI_TOTALS: GeminiSessionTotals = {
 };
 
 function getGeminiCallKey(call: GeminiUsageCall): string {
+  // Prefer call_id (UUID generated per call) for reliable de-duplication
+  if (call.call_id) return call.call_id;
+  // Fall back to response_id if available
   if (call.response_id) return call.response_id;
+  // Last resort fallback (may collide across turns if iteration resets)
   return `${call.model_version || 'unknown'}:${call.iteration}`;
 }
 
@@ -136,6 +140,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         sessionId: action.payload.sessionId,
         userId: action.payload.userId,
+        hasMemory: action.payload.hasMemory,
       };
 
     case 'LOAD_HISTORY':
@@ -312,7 +317,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             seenGeminiCallKeys = merged.seenKeys;
           }
 
-          dispatch({ type: 'RESUME_SESSION', payload: { sessionId: storedSessionId, userId: state.userId } });
+          dispatch({ type: 'RESUME_SESSION', payload: { sessionId: storedSessionId, userId: state.userId, hasMemory: history.has_memory ?? false } });
           dispatch({ type: 'LOAD_HISTORY', payload: { messages, geminiTotals, seenGeminiCallKeys } });
           return;
         } catch {

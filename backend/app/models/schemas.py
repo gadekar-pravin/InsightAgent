@@ -137,6 +137,7 @@ class ConversationHistory(BaseModel):
     messages: list[HistoryMessage]
     created_at: datetime
     last_updated: datetime
+    has_memory: bool = False
 
 
 # =============================================================================

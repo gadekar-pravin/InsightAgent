@@ -162,11 +162,9 @@ class InsightAgent:
             if re.search(pattern, msg):
                 return False
 
-        # If it's short and has no BI hints, treat as out-of-scope.
-        if len(msg) <= 60:
-            return False
-
         # Otherwise, defer to the model + system prompt.
+        # Short messages without keywords are likely follow-ups that rely on
+        # conversation context (e.g., "why?", "break it down further").
         return True
 
     def _load_conversation_history(
@@ -335,6 +333,7 @@ class InsightAgent:
             usage_metadata = getattr(response, "usage_metadata", None) if response is not None else None
             gemini_calls.append(
                 {
+                    "call_id": str(uuid.uuid4()),  # Unique ID for de-duplication across turns
                     "iteration": iteration,
                     "model": self.settings.gemini_model,
                     "model_version": getattr(response, "model_version", None) if response is not None else None,
@@ -463,6 +462,7 @@ class InsightAgent:
 
         while iteration < max_iterations:
             iteration += 1
+            call_recorded = False  # Track if we've recorded this iteration's Gemini call
 
             try:
                 start = time.perf_counter()
@@ -475,6 +475,7 @@ class InsightAgent:
                 )
                 latency_ms = int((time.perf_counter() - start) * 1000)
                 record_gemini_call(iteration=iteration, latency_ms=latency_ms, response=response)
+                call_recorded = True
 
                 # Check if model wants to call functions
                 if response.candidates and response.candidates[0].content:
@@ -610,7 +611,10 @@ class InsightAgent:
                     break
 
             except Exception as e:
-                record_gemini_call(iteration=iteration, latency_ms=0, response=None, error=str(e))
+                # Only record if we haven't already recorded a successful call this iteration
+                # (avoids double-counting when exception occurs after Gemini response)
+                if not call_recorded:
+                    record_gemini_call(iteration=iteration, latency_ms=0, response=None, error=str(e))
                 logger.error(f"Error in chat loop: {e}")
                 yield {
                     "type": "error",

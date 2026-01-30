@@ -221,6 +221,7 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
                 elif msg_type == "done":
                     # Save assistant response to history
                     full_response = "".join(response_content)
+                    assistant_message_id = None
                     if full_response:
                         assistant_msg = await firestore.add_message(
                             user_id=request.user_id,
@@ -233,14 +234,16 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
                         assistant_message_id = (
                             assistant_msg.get("message_id") if isinstance(assistant_msg, dict) else None
                         )
-                        if isinstance(gemini_usage, dict):
-                            await firestore.add_gemini_usage(
-                                user_id=request.user_id,
-                                session_id=request.session_id,
-                                usage=gemini_usage,
-                                user_message_id=user_message_id,
-                                assistant_message_id=assistant_message_id,
-                            )
+                    # Persist usage metrics regardless of whether there's a response
+                    # (ensures error paths don't silently drop usage data)
+                    if isinstance(gemini_usage, dict):
+                        await firestore.add_gemini_usage(
+                            user_id=request.user_id,
+                            session_id=request.session_id,
+                            usage=gemini_usage,
+                            user_message_id=user_message_id,
+                            assistant_message_id=assistant_message_id,
+                        )
                     break
 
         except Exception as e:
@@ -298,6 +301,10 @@ async def get_history(session_id: str, user_id: str) -> ConversationHistory:
             raise HTTPException(status_code=404, detail="Session not found")
         raise HTTPException(status_code=500, detail=history["error"])
 
+    # Check if user has existing memory (for session resume)
+    memory = await firestore.get_user_memory(user_id)
+    has_memory = bool(memory.get("summary") or memory.get("findings"))
+
     # Parse ISO strings to datetime objects for Pydantic
     from datetime import datetime as dt
 
@@ -321,6 +328,7 @@ async def get_history(session_id: str, user_id: str) -> ConversationHistory:
         messages=messages,
         created_at=dt.fromisoformat(created_at.replace("Z", "+00:00")) if created_at else dt.now(timezone.utc),
         last_updated=dt.fromisoformat(last_updated.replace("Z", "+00:00")) if last_updated else dt.now(timezone.utc),
+        has_memory=has_memory,
     )
 
 

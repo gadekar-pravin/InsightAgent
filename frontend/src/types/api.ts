@@ -95,6 +95,7 @@ export interface ConversationHistory {
   messages: HistoryMessage[];
   created_at: string;
   last_updated: string;
+  has_memory?: boolean;
 }
 
 // =============================================================================
@@ -102,6 +103,7 @@ export interface ConversationHistory {
 // =============================================================================
 
 export interface GeminiUsageCall {
+  call_id?: string;  // Unique ID for de-duplication across turns
   iteration: number;
   model: string;
   model_version?: string | null;

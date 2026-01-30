@@ -24,3 +24,12 @@ def test_scope_filter_allows_metric_definition():
 def test_scope_filter_allows_capabilities_question():
     assert InsightAgent._is_in_scope("what can you do?") is True
 
+
+def test_scope_filter_allows_short_followups():
+    """Short follow-up messages should be allowed (they rely on conversation context)."""
+    assert InsightAgent._is_in_scope("why?") is True
+    assert InsightAgent._is_in_scope("break it down further") is True
+    assert InsightAgent._is_in_scope("compare to last year") is True
+    assert InsightAgent._is_in_scope("show me more details") is True
+    assert InsightAgent._is_in_scope("what's causing that?") is True
+
