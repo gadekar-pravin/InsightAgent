@@ -23,10 +23,16 @@ IMPORTANT CONSTRAINTS:
 - Query timeout: 30 seconds
 - Results include column names and row count
 
-AVAILABLE TABLES (use fully qualified names with dataset):
-- `{dataset}.transactions`: revenue, quantity, date, region, product_id, customer_id
-- `{dataset}.customers`: customer_id, segment, acquisition_date, lifetime_value, region, status
-- `{dataset}.targets`: region, quarter, year, target_amount
+AVAILABLE TABLES (with column types):
+
+1. `{dataset}.transactions`
+   - revenue (FLOAT64), quantity (INT64), date (DATE), region (STRING), product_id (STRING), customer_id (STRING)
+
+2. `{dataset}.customers`
+   - customer_id (STRING), segment (STRING), acquisition_date (DATE), lifetime_value (FLOAT64), region (STRING), status (STRING)
+
+3. `{dataset}.targets`
+   - region (STRING), quarter (STRING - values like 'Q1', 'Q2', 'Q3', 'Q4'), year (INT64), target_amount (FLOAT64)
 
 EXAMPLE QUERIES:
 1. Q4 2024 revenue by region:
@@ -45,10 +51,10 @@ EXAMPLE QUERIES:
    FROM `{dataset}.customers`
    GROUP BY segment
 
-4. Q4 targets:
+4. Q4 targets (note: quarter is STRING like 'Q4'):
    SELECT region, target_amount
    FROM `{dataset}.targets`
-   WHERE quarter = 4 AND year = 2024
+   WHERE quarter = 'Q4' AND year = 2024
 
 Returns raw data. If the user asks 'why' or needs context to interpret results,
 follow up with `search_knowledge_base` to provide business context.

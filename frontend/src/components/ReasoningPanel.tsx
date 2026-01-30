@@ -13,8 +13,9 @@ interface ReasoningPanelProps {
 const TOOL_LABELS: Record<string, { label: string; icon: string }> = {
   query_bigquery: { label: 'Querying BigQuery', icon: 'database' },
   search_knowledge_base: { label: 'Searching knowledge base', icon: 'search' },
-  get_conversation_context: { label: 'Loading context', icon: 'memory' },
+  get_conversation_context: { label: 'Loading context', icon: 'history' },
   save_to_memory: { label: 'Saving insight', icon: 'bookmark' },
+  recall_memory: { label: 'Recalling saved memory', icon: 'psychology' },
 };
 
 function getToolDisplay(toolName: string) {

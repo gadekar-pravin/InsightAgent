@@ -85,6 +85,28 @@ The AI will recall your previous analysis.
 
 ---
 
+### 6. Testing Persistent Memory
+To verify the agent remembers saved findings:
+
+1. First, ask a data question that triggers a memory save:
+   > **"What was our Q4 2024 revenue?"**
+
+   Look for the 💾 indicator showing the finding was saved.
+
+2. Refresh the page to start a new session
+
+3. Ask:
+   > **"What do you remember about me?"**
+
+The AI will list all saved findings from previous sessions, such as:
+- Q4 2024 total revenue figures
+- Regional revenue breakdowns
+- Performance insights
+
+*This demonstrates the agent's persistent memory - it remembers important findings across sessions without you having to repeat them.*
+
+---
+
 ## Understanding the Interface
 
 ### Chat Area (Left)
@@ -141,6 +163,7 @@ Follow this sequence to see all capabilities:
 | 3 | "Is our churn rate healthy?" | Knowledge base lookup |
 | 4 | "How does West compare to Q3?" | Contextual follow-up |
 | 5 | *(New session)* "Continue where we left off" | Cross-session memory |
+| 6 | *(New session)* "What do you remember about me?" | Persistent memory recall |
 
 ---
 

@@ -86,9 +86,10 @@ async def get_conversation_context(
             }
 
         elif context_type == "user_preferences":
-            # Get user preferences
-            preferences = await service.get_user_preferences(user_id)
+            # Get user preferences and findings from memory
             memory = await service.get_user_memory(user_id)
+            preferences = memory.get("preferences", {})
+            findings = memory.get("findings", {})
             return {
                 "success": True,
                 "context_type": context_type,
@@ -97,6 +98,7 @@ async def get_conversation_context(
                     "regions_of_interest": preferences.get("regions_of_interest", []),
                     "role": preferences.get("role"),
                     "preferred_format": preferences.get("preferred_format"),
+                    "saved_findings": findings,
                 },
                 "last_updated": memory.get("last_updated"),
             }

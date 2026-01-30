@@ -55,6 +55,9 @@ class InsightAgent:
         self.session_id = session_id
         self.settings = get_settings()
 
+        # Store memory summary for reasoning trace
+        self._memory_summary = memory_summary
+
         # Build system prompt with optional memory context
         self.system_prompt = build_system_prompt(memory_summary)
 
@@ -236,6 +239,21 @@ class InsightAgent:
             nonlocal seq
             seq += 1
             return seq
+
+        # Emit memory context trace if we have saved memory
+        if self._memory_summary:
+            trace_id = str(uuid.uuid4())[:8]
+            yield {
+                "type": "reasoning",
+                "seq": next_seq(),
+                "data": {
+                    "trace_id": trace_id,
+                    "tool_name": "recall_memory",
+                    "status": "completed",
+                    "input": "Loading saved findings from previous sessions...",
+                    "summary": "Using remembered context to inform response",
+                },
+            }
 
         # Add user message to history
         user_content = types.Content(
