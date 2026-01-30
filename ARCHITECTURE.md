@@ -830,8 +830,8 @@ flowchart TB
 
 | Control | Location | Purpose |
 |---------|----------|---------|
-| `maximum_bytes_billed` | `bigquery_service.py` | Reject queries that would scan >100MB |
-| Row limit (100) | `bigquery_service.py` | Cap returned rows |
+| `maximum_bytes_billed` | `bigquery_service.py` | Reject queries that would scan >10GB (configurable via `max_query_bytes`) |
+| Row limit (1000) | `bigquery_service.py` | Cap returned rows (configurable via `max_result_rows`) |
 | Dry-run validation | `bigquery_service.py` | Estimate cost before execution |
 | `max-instances: 5` | Cloud Run config | Prevent runaway scaling |
 | `min-instances: 0` | Cloud Run config | Scale to zero when idle |
@@ -952,7 +952,7 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph "GCP Billing"
-        BUDGET[Budget Alerts<br/>$50, $100, $500 thresholds]
+        BUDGET[Budget Alerts<br/>50%, 90%, 100% thresholds]
         EXPORT[Billing Export<br/>to BigQuery]
         DASH[Cost Dashboard<br/>Per-service breakdown]
     end
