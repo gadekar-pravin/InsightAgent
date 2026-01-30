@@ -270,6 +270,7 @@ interface ChatContextValue extends ChatState {
   initSession: () => Promise<void>;
   sendChatMessage: (content: string) => void;
   cancelStream: () => void;
+  resetSession: () => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -428,11 +429,39 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_LOADING', payload: false });
   }, []);
 
+  // Reset session and start fresh
+  const resetSession = useCallback(async () => {
+    // Cancel any ongoing stream
+    abortControllerRef.current?.abort();
+
+    // Clear stored session
+    window.localStorage.removeItem(sessionStorageKey);
+
+    // Reset state
+    dispatch({ type: 'RESET' });
+
+    // Allow new session to be created
+    sessionInitRef.current = false;
+
+    // Create new session
+    try {
+      const session = await createSession({ user_id: state.userId });
+      window.localStorage.setItem(sessionStorageKey, session.session_id);
+      dispatch({ type: 'SET_SESSION', payload: session });
+    } catch (error) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to create session',
+      });
+    }
+  }, [sessionStorageKey, state.userId]);
+
   const value: ChatContextValue = {
     ...state,
     initSession,
     sendChatMessage,
     cancelStream,
+    resetSession,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

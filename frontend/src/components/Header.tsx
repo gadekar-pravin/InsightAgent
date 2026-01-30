@@ -8,6 +8,7 @@ interface HeaderProps {
   hasMemory?: boolean;
   memorySavedCount?: number;
   geminiTotals?: GeminiSessionTotals;
+  onNewChat?: () => void;
 }
 
 function formatCount(value: number | null | undefined): string {
@@ -26,6 +27,7 @@ export function Header({
   hasMemory = false,
   memorySavedCount = 0,
   geminiTotals,
+  onNewChat,
 }: HeaderProps) {
   const usageTitle = geminiTotals
     ? [
@@ -43,18 +45,35 @@ export function Header({
   return (
     <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-[#16222c]/80 backdrop-blur-md flex items-center justify-between px-6 z-10 shrink-0">
       <div className="flex items-center gap-4">
-        <img
-          src="/assets/PGlogo.png"
-          alt="P&G Logo"
-          className="h-10 w-10 rounded-lg object-contain"
-        />
-        <h2 className="text-xl font-bold leading-tight tracking-tight">
-          InsightAgent
-        </h2>
+        <button
+          onClick={onNewChat}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          title="Back to home"
+        >
+          <img
+            src="/assets/PGlogo.png"
+            alt="P&G Logo"
+            className="h-10 w-10 rounded-lg object-contain"
+          />
+          <h2 className="text-xl font-bold leading-tight tracking-tight">
+            InsightAgent
+          </h2>
+        </button>
         <span className="text-slate-400 dark:text-slate-500 mx-2">|</span>
         <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
           Internal Demo by LTIMindtree IMS team
         </span>
+        {/* New Chat button */}
+        {onNewChat && (
+          <button
+            onClick={onNewChat}
+            className="ml-4 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            title="Start a new chat"
+          >
+            <span className="material-symbols-outlined text-base">add</span>
+            <span className="hidden sm:inline">New Chat</span>
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-3">
         {/* Gemini usage (session total) */}

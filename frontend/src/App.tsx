@@ -16,6 +16,7 @@ function AppContent() {
     geminiTotals,
     initSession,
     sendChatMessage,
+    resetSession,
     error,
   } = useChat();
 
@@ -35,6 +36,7 @@ function AppContent() {
           hasMemory={hasMemory}
           memorySavedCount={memorySavedCount}
           geminiTotals={geminiTotals}
+          onNewChat={resetSession}
         />
 
         {/* Error banner */}
