@@ -434,14 +434,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Cancel any ongoing stream
     abortControllerRef.current?.abort();
 
+    // Block initSession from running during reset (prevents race condition
+    // where useEffect re-triggers initSession after RESET sets sessionId=null)
+    sessionInitRef.current = true;
+
     // Clear stored session
     window.localStorage.removeItem(sessionStorageKey);
 
     // Reset state
     dispatch({ type: 'RESET' });
-
-    // Allow new session to be created
-    sessionInitRef.current = false;
 
     // Create new session
     try {
@@ -449,6 +450,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       window.localStorage.setItem(sessionStorageKey, session.session_id);
       dispatch({ type: 'SET_SESSION', payload: session });
     } catch (error) {
+      sessionInitRef.current = false; // Allow retry on error
       dispatch({
         type: 'SET_ERROR',
         payload: error instanceof Error ? error.message : 'Failed to create session',
