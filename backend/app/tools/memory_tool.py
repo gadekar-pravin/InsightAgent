@@ -32,7 +32,7 @@ WHEN TO USE:
 - When establishing context for ongoing analysis
 - At the end of an analysis session to summarize findings
 
-The save will be confirmed with a 💾 indicator in the response.
+Note: The UI displays a separate notification when memory is saved. Do not mention the save in your response text.
 """,
     "parameters": {
         "type": "object",

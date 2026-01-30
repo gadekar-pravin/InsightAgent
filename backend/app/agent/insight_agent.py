@@ -243,6 +243,18 @@ class InsightAgent:
         # Emit memory context trace if we have saved memory
         if self._memory_summary:
             trace_id = str(uuid.uuid4())[:8]
+            # Emit started event first (frontend requires this to add trace)
+            yield {
+                "type": "reasoning",
+                "seq": next_seq(),
+                "data": {
+                    "trace_id": trace_id,
+                    "tool_name": "recall_memory",
+                    "status": "started",
+                    "input": "Loading saved findings from previous sessions...",
+                },
+            }
+            # Then emit completed event
             yield {
                 "type": "reasoning",
                 "seq": next_seq(),
@@ -250,7 +262,6 @@ class InsightAgent:
                     "trace_id": trace_id,
                     "tool_name": "recall_memory",
                     "status": "completed",
-                    "input": "Loading saved findings from previous sessions...",
                     "summary": "Using remembered context to inform response",
                 },
             }
