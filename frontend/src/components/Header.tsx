@@ -11,9 +11,11 @@ export function Header({ hasMemory = false, memorySavedCount = 0 }: HeaderProps)
   return (
     <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-[#16222c]/80 backdrop-blur-md flex items-center justify-between px-6 z-10 shrink-0">
       <div className="flex items-center gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
-          <span className="material-symbols-outlined">analytics</span>
-        </div>
+        <img
+          src="/assets/PGlogo.png"
+          alt="P&G Logo"
+          className="h-10 w-10 rounded-lg object-contain"
+        />
         <h2 className="text-xl font-bold leading-tight tracking-tight">
           InsightAgent
         </h2>
