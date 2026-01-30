@@ -102,7 +102,7 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'UPDATE_REASONING_TRACE': {
       const traces = state.currentReasoningTraces.map((t) =>
         t.trace_id === action.payload.trace_id
-          ? { ...t, ...action.payload }  // Merge to preserve input from started event
+          ? { ...t, ...action.payload, input: action.payload.input ?? t.input }  // Preserve input from started event
           : t
       );
       return { ...state, currentReasoningTraces: traces };

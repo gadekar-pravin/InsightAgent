@@ -296,15 +296,17 @@ class InsightAgent:
                             input_display = self._format_tool_input(fc.name, args)
 
                             # Emit tool start event with input details
+                            start_data = {
+                                "trace_id": trace_id,
+                                "tool_name": fc.name,
+                                "status": "started",
+                            }
+                            if input_display is not None:
+                                start_data["input"] = input_display
                             yield {
                                 "type": "reasoning",
                                 "seq": next_seq(),
-                                "data": {
-                                    "trace_id": trace_id,
-                                    "tool_name": fc.name,
-                                    "status": "started",
-                                    "input": input_display,
-                                },
+                                "data": start_data,
                             }
 
                             # Execute the tool
@@ -442,11 +444,11 @@ class InsightAgent:
             Formatted input string for display, or None if not applicable
         """
         if tool_name == "query_bigquery":
-            sql = args.get("sql", "")
+            sql = str(args.get("sql") or "")
             # Truncate very long queries but keep them readable
             if len(sql) > 500:
                 sql = sql[:500] + "..."
-            return sql
+            return sql if sql else None
         elif tool_name == "search_knowledge_base":
             query = args.get("query", "")
             top_k = args.get("top_k", 3)
@@ -483,14 +485,20 @@ class InsightAgent:
                 # Format first row as preview
                 first_row = data[0]
                 preview_parts = []
+                # Identify likely currency columns by name
+                currency_columns = {"revenue", "total_revenue", "amount", "target_amount", "lifetime_value", "avg_ltv"}
                 for col in columns[:3]:  # Show first 3 columns
                     val = first_row.get(col, "")
-                    # Format numbers nicely
-                    if isinstance(val, (int, float)):
+                    # Only format as currency if column name suggests it's a monetary value
+                    if isinstance(val, (int, float)) and col.lower() in currency_columns:
                         if val >= 1000000:
                             val = f"${val/1000000:.1f}M"
                         elif val >= 1000:
                             val = f"${val/1000:.1f}K"
+                        else:
+                            val = f"${val:,.0f}"
+                    elif isinstance(val, float):
+                        val = f"{val:,.2f}"
                     preview_parts.append(f"{col}: {val}")
                 preview = ", ".join(preview_parts)
                 return f"Found {row_count} rows. Sample: {preview}"
@@ -505,9 +513,9 @@ class InsightAgent:
             return "No matching documents found"
 
         elif tool_name == "get_conversation_context":
-            context = result.get("context", {})
+            context = result.get("data", {})
             if context:
-                return f"Loaded context from previous session"
+                return "Loaded context from previous session"
             return "No previous context found"
 
         elif tool_name == "save_to_memory":
