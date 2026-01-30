@@ -13,8 +13,11 @@ InsightAgent is an AI-powered business intelligence assistant demonstrating Goog
 cd backend
 source .venv/bin/activate
 uvicorn app.main:app --reload --port 8080   # Start dev server
+```
 
-# Run tests
+### Tests (run from repo root)
+```bash
+source backend/.venv/bin/activate
 pytest tests/                                # All tests
 pytest tests/test_demo_data.py              # Data validation tests
 RUN_INTEGRATION_TESTS=1 pytest tests/test_integration.py -v  # Integration tests (requires GCP)
@@ -37,8 +40,9 @@ npm run lint     # ESLint
 ./scripts/deploy.sh cooldown  # Set min-instances=0 after demo
 ```
 
-### Data Setup
+### Data Setup (run from repo root)
 ```bash
+source backend/.venv/bin/activate
 python scripts/seed_bigquery.py       # Seed demo data to BigQuery
 python scripts/setup_rag_corpus.py    # Setup Vertex AI RAG corpus with knowledge base
 ```

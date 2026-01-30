@@ -29,25 +29,25 @@ InsightAgent enables business users to conduct investigative analytics through n
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   Firebase Hosting                   │
+│                   Firebase Hosting                  │
 │              React SPA (Vite + Tailwind)            │
-│         Chat UI with Reasoning Trace Display         │
+│         Chat UI with Reasoning Trace Display        │
 └─────────────────────┬───────────────────────────────┘
                       │ HTTPS API calls (SSE for streaming)
                       ▼
 ┌─────────────────────────────────────────────────────┐
-│                    Cloud Run                         │
-│                 FastAPI Backend                      │
-│  ┌─────────────────────────────────────────────┐   │
-│  │            Google ADK Agent                  │   │
-│  │                                              │   │
-│  │  Tools:                                      │   │
-│  │  • query_bigquery                           │   │
-│  │  • search_knowledge_base                    │   │
-│  │  • get_conversation_context                 │   │
-│  │  • save_to_memory                           │   │
-│  └─────────────────────────────────────────────┘   │
-└───────┬──────────────┬─────────────────┬───────────┘
+│                    Cloud Run                        │
+│                 FastAPI Backend                     │
+│  ┌─────────────────────────────────────────────┐    │
+│  │            Google ADK Agent                 │    │
+│  │                                             │    │
+│  │  Tools:                                     │    │
+│  │  • query_bigquery                           │    │
+│  │  • search_knowledge_base                    │    │
+│  │  • get_conversation_context                 │    │
+│  │  • save_to_memory                           │    │
+│  └─────────────────────────────────────────────┘    │
+└───────┬──────────────┬─────────────────┬─────────── ┘
         │              │                 │
         ▼              ▼                 ▼
    ┌─────────┐   ┌──────────┐    ┌─────────────┐
@@ -119,9 +119,11 @@ The frontend runs at http://localhost:5173 and proxies API requests to the backe
 
 ### Data Setup
 
-Before using the app, seed the demo data:
+Before using the app, seed the demo data (run from repo root):
 
 ```bash
+source backend/.venv/bin/activate
+
 # Seed BigQuery tables
 python scripts/seed_bigquery.py
 
@@ -203,6 +205,8 @@ InsightAgent/
 │   ├── seed_bigquery.py         # Data seeding
 │   └── setup_rag_corpus.py      # RAG setup
 └── tests/
+    ├── conftest.py
+    ├── test_demo_data.py
     └── test_integration.py
 ```
 
@@ -233,9 +237,10 @@ InsightAgent/
 
 ## Testing
 
+Tests are located at the repo root in `tests/`. Run from repo root:
+
 ```bash
-cd backend
-source .venv/bin/activate
+source backend/.venv/bin/activate
 
 # Run all tests
 pytest tests/
