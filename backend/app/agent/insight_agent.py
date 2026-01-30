@@ -496,7 +496,7 @@ class InsightAgent:
                         elif val >= 1000:
                             val = f"${val/1000:.1f}K"
                         else:
-                            val = f"${val:,.0f}"
+                            val = f"${val:,.2f}"
                     elif isinstance(val, float):
                         val = f"{val:,.2f}"
                     preview_parts.append(f"{col}: {val}")
