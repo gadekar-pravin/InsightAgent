@@ -21,7 +21,7 @@ export function Header({ hasMemory = false, memorySavedCount = 0 }: HeaderProps)
         </h2>
         <span className="text-slate-400 dark:text-slate-500 mx-2">|</span>
         <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
-          Internal Demo by LTI
+          Internal Demo by LTIMindtree IMS team
         </span>
       </div>
       <div className="flex items-center gap-3">
