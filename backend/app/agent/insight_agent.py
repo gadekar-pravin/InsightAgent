@@ -8,6 +8,8 @@ and registers all four tools using google.genai.Client.
 import asyncio
 import json
 import logging
+import re
+import time
 import uuid
 from typing import AsyncGenerator, Any
 
@@ -85,6 +87,87 @@ class InsightAgent:
         "assistant": "model",
         "model": "model",  # Handle if Gemini's role name is stored directly
     }
+
+    # Simple scope guardrails to avoid answering unrelated, non-BI questions.
+    # This is intentionally conservative: if we are not confident it's out-of-scope,
+    # let the model handle it using the system prompt.
+    _IN_SCOPE_HINTS = {
+        "revenue",
+        "sales",
+        "transaction",
+        "transactions",
+        "customer",
+        "customers",
+        "segment",
+        "segments",
+        "churn",
+        "retention",
+        "ltv",
+        "lifetime value",
+        "conversion",
+        "pipeline",
+        "forecast",
+        "target",
+        "targets",
+        "goal",
+        "quota",
+        "region",
+        "regions",
+        "north",
+        "south",
+        "east",
+        "west",
+        "quarter",
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "kpi",
+        "metric",
+        "metrics",
+        "bigquery",
+        "sql",
+        "knowledge base",
+    }
+
+    _ALLOWLIST_META = {
+        "help",
+        "what can you do",
+        "what do you do",
+        "capabilities",
+        "how do i use you",
+    }
+
+    _OUT_OF_SCOPE_PATTERNS = [
+        r"\breverse\s+of\b",
+        r"\banagram\b",
+        r"\bpalindrome\b",
+        r"\btell\s+me\s+a\s+joke\b",
+        r"\bwrite\s+(a|an)\s+(poem|song|story)\b",
+    ]
+
+    @classmethod
+    def _is_in_scope(cls, message: str) -> bool:
+        msg = (message or "").strip().lower()
+        if not msg:
+            return True
+
+        if any(meta in msg for meta in cls._ALLOWLIST_META):
+            return True
+
+        if any(hint in msg for hint in cls._IN_SCOPE_HINTS):
+            return True
+
+        for pattern in cls._OUT_OF_SCOPE_PATTERNS:
+            if re.search(pattern, msg):
+                return False
+
+        # If it's short and has no BI hints, treat as out-of-scope.
+        if len(msg) <= 60:
+            return False
+
+        # Otherwise, defer to the model + system prompt.
+        return True
 
     def _load_conversation_history(
         self,
@@ -240,6 +323,61 @@ class InsightAgent:
             seq += 1
             return seq
 
+        gemini_calls: list[dict[str, Any]] = []
+
+        def record_gemini_call(
+            *,
+            iteration: int,
+            latency_ms: int,
+            response: Any | None,
+            error: str | None = None,
+        ) -> None:
+            usage_metadata = getattr(response, "usage_metadata", None) if response is not None else None
+            gemini_calls.append(
+                {
+                    "iteration": iteration,
+                    "model": self.settings.gemini_model,
+                    "model_version": getattr(response, "model_version", None) if response is not None else None,
+                    "response_id": getattr(response, "response_id", None) if response is not None else None,
+                    "latency_ms": latency_ms,
+                    "status": "error" if error else "ok",
+                    "error": error,
+                    "usage": {
+                        "prompt_token_count": getattr(usage_metadata, "prompt_token_count", None),
+                        "candidates_token_count": getattr(usage_metadata, "candidates_token_count", None),
+                        "total_token_count": getattr(usage_metadata, "total_token_count", None),
+                        "thoughts_token_count": getattr(usage_metadata, "thoughts_token_count", None),
+                        "cached_content_token_count": getattr(usage_metadata, "cached_content_token_count", None),
+                        "tool_use_prompt_token_count": getattr(usage_metadata, "tool_use_prompt_token_count", None),
+                    },
+                }
+            )
+
+        def usage_summary() -> dict[str, Any]:
+            def _sum_int(field_path: list[str]) -> int | None:
+                total = 0
+                found_any = False
+                for call in gemini_calls:
+                    value: Any = call
+                    for key in field_path:
+                        value = value.get(key) if isinstance(value, dict) else None
+                    if isinstance(value, int):
+                        total += value
+                        found_any = True
+                return total if found_any else None
+
+            return {
+                "calls": len(gemini_calls),
+                "total_latency_ms": sum(int(c.get("latency_ms") or 0) for c in gemini_calls),
+                "prompt_token_count": _sum_int(["usage", "prompt_token_count"]),
+                "candidates_token_count": _sum_int(["usage", "candidates_token_count"]),
+                "total_token_count": _sum_int(["usage", "total_token_count"]),
+                "thoughts_token_count": _sum_int(["usage", "thoughts_token_count"]),
+                "cached_content_token_count": _sum_int(["usage", "cached_content_token_count"]),
+                "tool_use_prompt_token_count": _sum_int(["usage", "tool_use_prompt_token_count"]),
+                "per_call": gemini_calls,
+            }
+
         # Emit memory context trace if we have saved memory
         if self._memory_summary:
             trace_id = str(uuid.uuid4())[:8]
@@ -271,6 +409,42 @@ class InsightAgent:
             role="user",
             parts=[types.Part.from_text(text=message)],
         )
+        if not self._is_in_scope(message):
+            refusal = (
+                "I’m built to help with company metrics and performance analysis (revenue, targets, regions, "
+                "customer segments, etc.). That request isn’t related to business intelligence.\n\n"
+                "If you tell me the metric/timeframe you care about (e.g., “Q4 revenue by region” or "
+                "“why West missed target”), I can pull the data and explain what’s driving it."
+            )
+
+            self._history.append(user_content)
+            self._history.append(
+                types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text=refusal)],
+                )
+            )
+
+            yield {
+                "type": "content",
+                "seq": next_seq(),
+                "data": {"delta": refusal},
+            }
+            yield {
+                "type": "done",
+                "seq": next_seq(),
+                "data": {
+                    "suggested_followups": [
+                        "What was our Q4 revenue?",
+                        "Revenue by region vs target for Q4",
+                        "Why did we miss our target last quarter?",
+                    ],
+                    "tools_used": [],
+                    "gemini_usage": usage_summary(),
+                },
+            }
+            return
+
         self._history.append(user_content)
 
         # Build generation config
@@ -291,6 +465,7 @@ class InsightAgent:
             iteration += 1
 
             try:
+                start = time.perf_counter()
                 # Generate response - run sync call in thread to avoid blocking event loop
                 response = await asyncio.to_thread(
                     self.client.models.generate_content,
@@ -298,6 +473,8 @@ class InsightAgent:
                     contents=self._history,
                     config=config,
                 )
+                latency_ms = int((time.perf_counter() - start) * 1000)
+                record_gemini_call(iteration=iteration, latency_ms=latency_ms, response=response)
 
                 # Check if model wants to call functions
                 if response.candidates and response.candidates[0].content:
@@ -417,6 +594,7 @@ class InsightAgent:
                             "data": {
                                 "suggested_followups": followups,
                                 "tools_used": tool_calls_made,
+                                "gemini_usage": usage_summary(),
                             },
                         }
                         return
@@ -432,12 +610,14 @@ class InsightAgent:
                     break
 
             except Exception as e:
+                record_gemini_call(iteration=iteration, latency_ms=0, response=None, error=str(e))
                 logger.error(f"Error in chat loop: {e}")
                 yield {
                     "type": "error",
                     "seq": next_seq(),
                     "data": {
                         "error": f"An error occurred: {str(e)}",
+                        "gemini_usage": usage_summary(),
                     },
                 }
                 return
@@ -458,6 +638,7 @@ class InsightAgent:
                     "What was our Q4 revenue?",
                     "How are we tracking against targets?",
                 ],
+                "gemini_usage": usage_summary(),
             },
         }
 

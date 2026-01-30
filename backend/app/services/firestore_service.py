@@ -495,6 +495,7 @@ class FirestoreService:
         role: str,
         content: str,
         reasoning_trace: list[dict] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Add a message to session history.
@@ -520,6 +521,8 @@ class FirestoreService:
             }
             if reasoning_trace:
                 message_data["reasoning_trace"] = reasoning_trace
+            if metadata:
+                message_data["metadata"] = metadata
 
             # Add to messages subcollection within the session
             messages_ref = self.db.collection(
@@ -553,6 +556,54 @@ class FirestoreService:
 
         except Exception as e:
             logger.error(f"Error adding message: {e}")
+            return {"error": str(e)}
+
+    async def add_gemini_usage(
+        self,
+        user_id: str,
+        session_id: str,
+        usage: dict[str, Any],
+        *,
+        user_message_id: str | None = None,
+        assistant_message_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Record Gemini usage for a single user turn.
+
+        This writes to a `usage` subcollection under the session so it can be
+        aggregated later (e.g., daily totals, per-user costs, error rates).
+        """
+        self._validate_user_id(user_id)
+
+        try:
+            now = datetime.now(timezone.utc)
+            usage_data = {
+                "timestamp": now.isoformat(),
+                "usage": usage,
+                "user_message_id": user_message_id,
+                "assistant_message_id": assistant_message_id,
+            }
+
+            usage_ref = self.db.collection(
+                f"{self._sessions_collection(user_id)}/{session_id}/usage"
+            )
+            add_result = usage_ref.add(usage_data)
+
+            doc_ref = None
+            if isinstance(add_result, tuple) and len(add_result) == 2:
+                first, second = add_result
+                if hasattr(first, "id"):
+                    doc_ref = first
+                elif hasattr(second, "id"):
+                    doc_ref = second
+            elif hasattr(add_result, "id"):
+                doc_ref = add_result
+
+            logger.debug(f"Recorded Gemini usage for session {session_id[:8]}...")
+            return {"usage_id": getattr(doc_ref, "id", None), "timestamp": now.isoformat()}
+
+        except Exception as e:
+            logger.error(f"Error recording Gemini usage: {e}")
             return {"error": str(e)}
 
     async def get_session_history(

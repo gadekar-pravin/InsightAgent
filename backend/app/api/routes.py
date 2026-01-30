@@ -98,12 +98,13 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
     conversation_history = session_history.get("messages", []) if "error" not in session_history else []
 
     # Save user message to history
-    await firestore.add_message(
+    user_msg = await firestore.add_message(
         user_id=request.user_id,
         session_id=request.session_id,
         role="user",
         content=request.content,
     )
+    user_message_id = user_msg.get("message_id") if isinstance(user_msg, dict) else None
 
     # Get user memory for system prompt injection
     memory_summary = await firestore.get_user_memory_summary(request.user_id)
@@ -124,6 +125,7 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
         seq = 0
         response_content: list[str] = []
         reasoning_trace: list[dict] = []
+        gemini_usage: dict | None = None
         heartbeat_interval = 15  # seconds
         done = False
 
@@ -188,6 +190,13 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
                             response_content.append(delta)
                     elif event_type == "reasoning":
                         reasoning_trace.append(event_data)
+                    elif event_type == "done":
+                        # Capture usage metrics for persistence (frontend can ignore)
+                        if isinstance(event_data.get("gemini_usage"), dict):
+                            gemini_usage = event_data["gemini_usage"]
+                    elif event_type == "error":
+                        if isinstance(event_data.get("gemini_usage"), dict):
+                            gemini_usage = event_data["gemini_usage"]
 
                     # Format as SSE
                     yield f"id: {seq}\n"
@@ -199,19 +208,39 @@ async def send_message(request: MessageRequest) -> StreamingResponse:
                     yield f"id: {seq}\n"
                     yield "event: error\n"
                     yield f"data: {_json_dumps({'seq': seq, 'error': msg_data})}\n\n"
+                    if isinstance(gemini_usage, dict):
+                        await firestore.add_gemini_usage(
+                            user_id=request.user_id,
+                            session_id=request.session_id,
+                            usage=gemini_usage,
+                            user_message_id=user_message_id,
+                            assistant_message_id=None,
+                        )
                     break
 
                 elif msg_type == "done":
                     # Save assistant response to history
                     full_response = "".join(response_content)
                     if full_response:
-                        await firestore.add_message(
+                        assistant_msg = await firestore.add_message(
                             user_id=request.user_id,
                             session_id=request.session_id,
                             role="assistant",
                             content=full_response,
                             reasoning_trace=reasoning_trace if reasoning_trace else None,
+                            metadata={"gemini_usage": gemini_usage} if gemini_usage else None,
                         )
+                        assistant_message_id = (
+                            assistant_msg.get("message_id") if isinstance(assistant_msg, dict) else None
+                        )
+                        if isinstance(gemini_usage, dict):
+                            await firestore.add_gemini_usage(
+                                user_id=request.user_id,
+                                session_id=request.session_id,
+                                usage=gemini_usage,
+                                user_message_id=user_message_id,
+                                assistant_message_id=assistant_message_id,
+                            )
                     break
 
         except Exception as e:
