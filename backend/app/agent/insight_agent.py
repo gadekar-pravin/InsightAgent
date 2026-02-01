@@ -12,6 +12,7 @@ import re
 import time
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import AsyncGenerator, Any
 
 from google import genai
@@ -827,7 +828,7 @@ class InsightAgent:
             if sample_value is None:
                 continue
 
-            if isinstance(sample_value, (int, float)):
+            if isinstance(sample_value, (int, float, Decimal)):
                 numeric_cols.append(col)
             elif isinstance(sample_value, (str, date, datetime)):
                 categorical_cols.append(col)
@@ -838,7 +839,7 @@ class InsightAgent:
 
         x_axis = categorical_cols[0]
         y_axis = numeric_cols[0]
-        chart_type = self._select_chart_type(data, x_axis, len(data))
+        chart_type = self._select_chart_type(x_axis, len(data))
 
         return {
             "chart_type": chart_type,
@@ -849,23 +850,23 @@ class InsightAgent:
             "y_axis": y_axis,
         }
 
-    def _select_chart_type(self, data: list, x_col: str, row_count: int) -> str:
+    def _select_chart_type(self, x_col: str, row_count: int) -> str:
         """
         Select appropriate chart type based on data shape.
 
         Args:
-            data: List of data rows
             x_col: Name of the x-axis column
             row_count: Number of data rows
 
         Returns:
             Chart type string: 'bar', 'line', or 'pie'
         """
-        x_lower = x_col.lower()
+        # Use token-based matching to avoid false positives like "lifetime_value"
+        time_indicators = {'date', 'month', 'quarter', 'year', 'time', 'period', 'timestamp', 'datetime'}
+        tokens = re.split(r'[_\s]+', x_col.lower())
 
         # Time-based data -> line chart
-        time_indicators = ['date', 'month', 'quarter', 'year', 'time', 'period']
-        if any(t in x_lower for t in time_indicators):
+        if any(token in time_indicators for token in tokens):
             return 'line'
 
         # Few categories -> pie chart (good for showing proportions)

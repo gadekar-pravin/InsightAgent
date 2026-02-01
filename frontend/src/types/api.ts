@@ -83,7 +83,7 @@ export interface ErrorEvent {
 export interface VisualizationData {
   chart_type: 'bar' | 'line' | 'pie';
   title: string;
-  data: Array<Record<string, string | number>>;
+  data: Array<Record<string, string | number | null>>;
   columns: string[];
   x_axis: string;
   y_axis: string;

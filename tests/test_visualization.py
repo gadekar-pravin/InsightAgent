@@ -5,11 +5,12 @@ Tests for visualization detection methods in InsightAgent.
 import os
 import sys
 from datetime import date, datetime
+from decimal import Decimal
 
 # Add backend to path so `app.*` imports work in unit tests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from app.agent.insight_agent import InsightAgent  # noqa: E402
+from app.agent.insight_agent import InsightAgent
 
 
 def create_agent() -> InsightAgent:
@@ -169,6 +170,26 @@ class TestShouldVisualize:
         assert viz["x_axis"] == "timestamp"
         assert viz["y_axis"] == "revenue"
 
+    def test_handles_decimal_column_as_numeric(self):
+        """Should treat decimal.Decimal columns (BigQuery NUMERIC) as numeric."""
+        agent = create_agent()
+        result = {
+            "success": True,
+            "row_count": 4,
+            "columns": ["region", "total_revenue"],
+            "data": [
+                {"region": "North", "total_revenue": Decimal("2500000.50")},
+                {"region": "South", "total_revenue": Decimal("2100000.75")},
+                {"region": "East", "total_revenue": Decimal("1800000.25")},
+                {"region": "West", "total_revenue": Decimal("1500000.00")},
+            ],
+        }
+        viz = agent._should_visualize(result)
+        assert viz is not None
+        assert viz["x_axis"] == "region"
+        assert viz["y_axis"] == "total_revenue"
+        assert viz["chart_type"] == "pie"  # 4 rows -> pie chart
+
 
 class TestSelectChartType:
     """Tests for _select_chart_type method."""
@@ -176,40 +197,47 @@ class TestSelectChartType:
     def test_returns_line_for_time_based_x_axis(self):
         """Should return 'line' for time-related column names."""
         agent = create_agent()
-        data = [{"month": "Jan", "revenue": 100}]
 
-        assert agent._select_chart_type(data, "month", 6) == "line"
-        assert agent._select_chart_type(data, "quarter", 4) == "line"
-        assert agent._select_chart_type(data, "year", 5) == "line"
-        assert agent._select_chart_type(data, "date", 10) == "line"
-        assert agent._select_chart_type(data, "time_period", 8) == "line"
+        assert agent._select_chart_type("month", 6) == "line"
+        assert agent._select_chart_type("quarter", 4) == "line"
+        assert agent._select_chart_type("year", 5) == "line"
+        assert agent._select_chart_type("date", 10) == "line"
+        assert agent._select_chart_type("time_period", 8) == "line"
+        assert agent._select_chart_type("timestamp", 6) == "line"
+        assert agent._select_chart_type("order_datetime", 6) == "line"
 
     def test_returns_pie_for_few_categories(self):
         """Should return 'pie' for 2-5 rows."""
         agent = create_agent()
-        data = [{"region": "North", "revenue": 100}]
 
-        assert agent._select_chart_type(data, "region", 2) == "pie"
-        assert agent._select_chart_type(data, "region", 3) == "pie"
-        assert agent._select_chart_type(data, "region", 4) == "pie"
-        assert agent._select_chart_type(data, "region", 5) == "pie"
+        assert agent._select_chart_type("region", 2) == "pie"
+        assert agent._select_chart_type("region", 3) == "pie"
+        assert agent._select_chart_type("region", 4) == "pie"
+        assert agent._select_chart_type("region", 5) == "pie"
 
     def test_returns_bar_for_many_categories(self):
         """Should return 'bar' for 6+ rows."""
         agent = create_agent()
-        data = [{"region": "North", "revenue": 100}]
 
-        assert agent._select_chart_type(data, "region", 6) == "bar"
-        assert agent._select_chart_type(data, "region", 10) == "bar"
-        assert agent._select_chart_type(data, "region", 20) == "bar"
+        assert agent._select_chart_type("region", 6) == "bar"
+        assert agent._select_chart_type("region", 10) == "bar"
+        assert agent._select_chart_type("region", 20) == "bar"
 
     def test_time_based_takes_priority_over_row_count(self):
         """Time-based x-axis should return 'line' regardless of row count."""
         agent = create_agent()
-        data = [{"month": "Jan", "revenue": 100}]
 
         # Even with 3 rows (which would normally be pie), month should be line
-        assert agent._select_chart_type(data, "month", 3) == "line"
+        assert agent._select_chart_type("month", 3) == "line"
+
+    def test_no_false_positive_for_lifetime_value(self):
+        """Should NOT classify 'lifetime_value' as time-based (token matching)."""
+        agent = create_agent()
+
+        # These should NOT be classified as time-based
+        assert agent._select_chart_type("lifetime_value", 6) == "bar"
+        assert agent._select_chart_type("segment", 3) == "pie"
+        assert agent._select_chart_type("customer_segment", 6) == "bar"
 
 
 class TestGenerateChartTitle:
