@@ -535,6 +535,16 @@ class InsightAgent:
                                 },
                             }
 
+                            # Emit visualization event if applicable
+                            if fc.name == "query_bigquery" and result.get("success"):
+                                viz_data = self._should_visualize(result)
+                                if viz_data:
+                                    yield {
+                                        "type": "visualization",
+                                        "seq": next_seq(),
+                                        "data": viz_data,
+                                    }
+
                             # Track for memory events
                             if fc.name == "save_to_memory" and result.get("success"):
                                 yield {
@@ -779,6 +789,105 @@ class InsightAgent:
             ]
 
         return followups[:3]  # Return max 3 suggestions
+
+    def _should_visualize(self, result: dict) -> dict | None:
+        """
+        Determine if BigQuery result should be visualized.
+
+        Args:
+            result: BigQuery tool result dictionary
+
+        Returns:
+            Visualization config dict if data is chartable, None otherwise
+        """
+        if not result.get("success") or result.get("row_count", 0) < 2:
+            return None
+
+        data = result.get("data", [])
+        columns = result.get("columns", [])
+
+        # Need 2-20 rows for meaningful chart
+        if not data or len(data) < 2 or len(data) > 20:
+            return None
+
+        # Identify column types by scanning for first non-null sample per column
+        numeric_cols = []
+        categorical_cols = []
+
+        for col in columns:
+            # Find first non-null value for this column
+            sample_value = None
+            for row in data:
+                val = row.get(col)
+                if val is not None:
+                    sample_value = val
+                    break
+
+            if sample_value is None:
+                continue
+
+            if isinstance(sample_value, (int, float)):
+                numeric_cols.append(col)
+            elif isinstance(sample_value, str):
+                categorical_cols.append(col)
+
+        # Need at least 1 categorical and 1 numeric for meaningful chart
+        if not numeric_cols or not categorical_cols:
+            return None
+
+        x_axis = categorical_cols[0]
+        y_axis = numeric_cols[0]
+        chart_type = self._select_chart_type(data, x_axis, len(data))
+
+        return {
+            "chart_type": chart_type,
+            "title": self._generate_chart_title(x_axis, y_axis),
+            "data": data,
+            "columns": columns,
+            "x_axis": x_axis,
+            "y_axis": y_axis,
+        }
+
+    def _select_chart_type(self, data: list, x_col: str, row_count: int) -> str:
+        """
+        Select appropriate chart type based on data shape.
+
+        Args:
+            data: List of data rows
+            x_col: Name of the x-axis column
+            row_count: Number of data rows
+
+        Returns:
+            Chart type string: 'bar', 'line', or 'pie'
+        """
+        x_lower = x_col.lower()
+
+        # Time-based data -> line chart
+        time_indicators = ['date', 'month', 'quarter', 'year', 'time', 'period']
+        if any(t in x_lower for t in time_indicators):
+            return 'line'
+
+        # Few categories -> pie chart (good for showing proportions)
+        if row_count <= 5:
+            return 'pie'
+
+        # Default to bar chart
+        return 'bar'
+
+    def _generate_chart_title(self, x_col: str, y_col: str) -> str:
+        """
+        Generate a chart title from column names.
+
+        Args:
+            x_col: X-axis column name
+            y_col: Y-axis column name
+
+        Returns:
+            Human-readable chart title
+        """
+        y_label = y_col.replace('_', ' ').title()
+        x_label = x_col.replace('_', ' ').title()
+        return f"{y_label} by {x_label}"
 
     async def close(self) -> None:
         """Clean up resources."""

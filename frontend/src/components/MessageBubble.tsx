@@ -5,6 +5,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage } from '../types/api';
+import { DataVisualization } from './charts';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -35,6 +36,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       {/* Message Content */}
       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
         <p className="text-sm font-bold text-primary">InsightAgent</p>
+
+        {/* Visualization - rendered before text explanation */}
+        {message.visualization && (
+          <DataVisualization data={message.visualization} />
+        )}
+
         <div className="space-y-4 prose prose-slate dark:prose-invert max-w-none">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
