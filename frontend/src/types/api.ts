@@ -40,7 +40,7 @@ export interface MessageResponse {
 // SSE Event Types
 // =============================================================================
 
-export type SSEEventType = 'reasoning' | 'content' | 'memory' | 'heartbeat' | 'done' | 'error';
+export type SSEEventType = 'reasoning' | 'content' | 'memory' | 'visualization' | 'heartbeat' | 'done' | 'error';
 
 export interface ReasoningEvent {
   seq: number;
@@ -75,6 +75,21 @@ export interface ErrorEvent {
   error: string;
   detail?: string;
 }
+
+// =============================================================================
+// Visualization Types
+// =============================================================================
+
+export interface VisualizationData {
+  chart_type: 'bar' | 'line' | 'pie';
+  title: string;
+  data: Array<Record<string, string | number | null>>;
+  columns: string[];
+  x_axis: string;
+  y_axis: string;
+}
+
+export type VisualizationEvent = VisualizationData & { seq: number };
 
 // =============================================================================
 // History Types
@@ -201,6 +216,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   reasoning_trace?: ReasoningTrace[];
+  visualization?: VisualizationData;
   isStreaming?: boolean;
 }
 

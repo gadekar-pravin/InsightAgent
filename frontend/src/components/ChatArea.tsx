@@ -4,6 +4,7 @@
 
 import { useEffect, useRef } from 'react';
 import { MessageBubble } from './MessageBubble';
+import { MessageSkeleton } from './MessageSkeleton';
 import { ChatInput } from './ChatInput';
 import { SuggestedFollowups } from './SuggestedFollowups';
 import { WelcomeScreen } from './WelcomeScreen';
@@ -37,9 +38,19 @@ export function ChatArea({
       {hasMessages ? (
         <>
           <div className="flex-1 overflow-y-auto p-8 space-y-8 scroll-smooth">
-            {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))}
+            {messages.map((message) => {
+              // Show skeleton instead of empty streaming assistant message
+              const isEmptyStreamingAssistant =
+                message.role === 'assistant' &&
+                message.isStreaming &&
+                !message.content;
+
+              if (isEmptyStreamingAssistant) {
+                return <MessageSkeleton key={message.id} />;
+              }
+
+              return <MessageBubble key={message.id} message={message} />;
+            })}
             <div ref={messagesEndRef} />
           </div>
 

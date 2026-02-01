@@ -13,6 +13,7 @@ import type {
   ReasoningEvent,
   ContentEvent,
   MemoryEvent,
+  VisualizationEvent,
   DoneEvent,
   ErrorEvent,
 } from '../types/api';
@@ -75,6 +76,7 @@ export type SSECallback = {
   onReasoning?: (event: ReasoningEvent) => void;
   onContent?: (event: ContentEvent) => void;
   onMemory?: (event: MemoryEvent) => void;
+  onVisualization?: (event: VisualizationEvent) => void;
   onDone?: (event: DoneEvent) => void;
   onError?: (event: ErrorEvent) => void;
   onHeartbeat?: () => void;
@@ -164,6 +166,9 @@ export function sendMessage(
                 break;
               case 'memory':
                 callbacks.onMemory?.(data as MemoryEvent);
+                break;
+              case 'visualization':
+                callbacks.onVisualization?.(data as VisualizationEvent);
                 break;
               case 'done':
                 callbacks.onDone?.(data as DoneEvent);

@@ -24,6 +24,7 @@ import type {
   GeminiUsageSummary,
   GeminiUsageCall,
   GeminiSessionTotals,
+  VisualizationData,
 } from '../types/api';
 
 // =============================================================================
@@ -50,6 +51,7 @@ type ChatAction =
   | { type: 'ADD_USER_MESSAGE'; payload: ChatMessage }
   | { type: 'ADD_ASSISTANT_MESSAGE'; payload: ChatMessage }
   | { type: 'UPDATE_ASSISTANT_CONTENT'; payload: string }
+  | { type: 'SET_VISUALIZATION'; payload: VisualizationData }
   | { type: 'ADD_REASONING_TRACE'; payload: ReasoningTrace }
   | { type: 'UPDATE_REASONING_TRACE'; payload: ReasoningTrace }
   | { type: 'APPLY_GEMINI_USAGE'; payload: GeminiUsageSummary | undefined }
@@ -178,6 +180,18 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
         messages[messages.length - 1] = {
           ...lastMessage,
           content: lastMessage.content + action.payload,
+        };
+      }
+      return { ...state, messages };
+    }
+
+    case 'SET_VISUALIZATION': {
+      const messages = [...state.messages];
+      const lastIdx = messages.length - 1;
+      if (lastIdx >= 0 && messages[lastIdx].role === 'assistant') {
+        messages[lastIdx] = {
+          ...messages[lastIdx],
+          visualization: action.payload,
         };
       }
       return { ...state, messages };
@@ -396,6 +410,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
         onMemory: () => {
           // Could show toast notification here
+        },
+        onVisualization: (event) => {
+          dispatch({
+            type: 'SET_VISUALIZATION',
+            payload: {
+              chart_type: event.chart_type,
+              title: event.title,
+              data: event.data,
+              columns: event.columns,
+              x_axis: event.x_axis,
+              y_axis: event.y_axis,
+            },
+          });
         },
         onDone: (event) => {
           dispatch({ type: 'APPLY_GEMINI_USAGE', payload: event.gemini_usage });
