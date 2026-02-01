@@ -4,6 +4,7 @@ Tests for visualization detection methods in InsightAgent.
 
 import os
 import sys
+from datetime import date, datetime
 
 # Add backend to path so `app.*` imports work in unit tests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
@@ -129,6 +130,44 @@ class TestShouldVisualize:
             "data": [],
         }
         assert agent._should_visualize(result) is None
+
+    def test_handles_date_column_as_categorical(self):
+        """Should treat datetime.date columns as categorical for x-axis."""
+        agent = create_agent()
+        result = {
+            "success": True,
+            "row_count": 4,
+            "columns": ["date", "total_revenue"],
+            "data": [
+                {"date": date(2024, 10, 1), "total_revenue": 500000},
+                {"date": date(2024, 11, 1), "total_revenue": 600000},
+                {"date": date(2024, 12, 1), "total_revenue": 700000},
+                {"date": date(2025, 1, 1), "total_revenue": 550000},
+            ],
+        }
+        viz = agent._should_visualize(result)
+        assert viz is not None
+        assert viz["chart_type"] == "line"  # date column triggers line chart
+        assert viz["x_axis"] == "date"
+        assert viz["y_axis"] == "total_revenue"
+
+    def test_handles_datetime_column_as_categorical(self):
+        """Should treat datetime.datetime columns as categorical for x-axis."""
+        agent = create_agent()
+        result = {
+            "success": True,
+            "row_count": 3,
+            "columns": ["timestamp", "revenue"],
+            "data": [
+                {"timestamp": datetime(2024, 10, 1, 10, 0, 0), "revenue": 100000},
+                {"timestamp": datetime(2024, 10, 2, 10, 0, 0), "revenue": 150000},
+                {"timestamp": datetime(2024, 10, 3, 10, 0, 0), "revenue": 120000},
+            ],
+        }
+        viz = agent._should_visualize(result)
+        assert viz is not None
+        assert viz["x_axis"] == "timestamp"
+        assert viz["y_axis"] == "revenue"
 
 
 class TestSelectChartType:

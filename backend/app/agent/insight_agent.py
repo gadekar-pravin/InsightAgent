@@ -11,6 +11,7 @@ import logging
 import re
 import time
 import uuid
+from datetime import date, datetime
 from typing import AsyncGenerator, Any
 
 from google import genai
@@ -828,7 +829,7 @@ class InsightAgent:
 
             if isinstance(sample_value, (int, float)):
                 numeric_cols.append(col)
-            elif isinstance(sample_value, str):
+            elif isinstance(sample_value, (str, date, datetime)):
                 categorical_cols.append(col)
 
         # Need at least 1 categorical and 1 numeric for meaningful chart
