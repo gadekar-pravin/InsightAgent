@@ -94,13 +94,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           >
             {message.content}
           </ReactMarkdown>
-          {/* Streaming indicator */}
-          {message.isStreaming && (
+          {/* Streaming indicator - only show when content has started arriving */}
+          {message.isStreaming && message.content && (
             <div className="flex items-center gap-2 text-sm text-primary">
               <span className="material-symbols-outlined text-base animate-spin-slow">
                 progress_activity
               </span>
-              <span>Generating response...</span>
             </div>
           )}
         </div>
