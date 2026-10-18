@@ -4,8 +4,6 @@
 
 InsightAgent enables business users to conduct investigative analytics through natural conversation—without writing SQL or navigating complex BI tools. It answers questions, provides context from company knowledge, and remembers what matters.
 
-**Live Demo:** https://insightagent-app.web.app
-
 ---
 
 ## Features
